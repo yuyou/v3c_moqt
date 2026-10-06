@@ -21,8 +21,8 @@ venue:
   type: "Working Group"
   mail: "moq@ietf.org"
   arch: "https://mailarchive.ietf.org/arch/browse/moq/"
-  github: yuyou/v3c
-  latest: https://yuyou.github.io/v3c/
+  github: "yuyou/v3c_moqt"
+  latest: "https://yuyou.github.io/v3c_moqt/draft-yuyou-moq-v3c.html"
 author:
   -
     ins: Y. You
@@ -131,13 +131,13 @@ summarizes an earlier unit-type list in which types 7 through 31 were
 reserved; this document follows {{ISOIEC23090-5}} for the current
 identifiers ({{v3c-track-identifiers}}).
 
-V3C defeins a generic high-level syntax for representing volumetric media as a collection of synchronized component bitstreams, together with signalling for their identification, configuration, and reconstructure.  
+V3C defeins a generic high-level syntax for representing volumetric media as a collection of synchronized component bitstreams, together with signalling for their identification, configuration, and reconstructure.
 {{ISOIEC23090-5}}, clause 6.3,
 defines application extensions that plug into that syntax:
 Video-based Point Cloud Compression (V-PCC) in Annex H of
 {{ISOIEC23090-5}}, MPEG Immersive Video (MIV) in {{ISOIEC23090-12}},
 and Video-based Dynamic Mesh Coding (V-DMC) in {{ISOIEC23090-29}}.
-This document maps the generic V3C unit stream to the MOQT data model.  
+This document maps the generic V3C unit stream to the MOQT data model.
 It does not specify
 V-PCC reconstruction, MIV camera or common-atlas payload syntax, or
 V-DMC mesh decoding.  Atlas and VPS extensions
@@ -173,7 +173,7 @@ carrying it as a media packet stream.
 
 This document therefore defines a V3C packaging value for MSF,
 analogous to the way {{I-D.ietf-moq-cmsf}} adds CMAF packaging on top
-of MSF.  It operates at the streaming-format layer and does not modify MOQT.  
+of MSF.  It operates at the streaming-format layer and does not modify MOQT.
 {{ISOIEC23090-5}} specifies the
 V3C bitstream, VPS, and unit types.  {{ISOIEC23090-10}} specifies
 carriage of V3C data in the ISO Base Media File Format and Dynamic
@@ -954,7 +954,7 @@ present and MUST be populated with the value `v3c` as defined in
 Object payloads are the coded V3C unit bytes specified in
 {{objects-subgroups-datagrams}}. The payload is not a LOC sample and does not include a LOC header.  V3C
 identifiers used for track selection are signalled through the track-level catalog fields "v3c" defined in
-({{v3c-track-identifiers}}). Such information MUST not be carried in MOQT Object Properties.  
+({{v3c-track-identifiers}}). Such information MUST not be carried in MOQT Object Properties.
 MOQT Object Properties remain limited to information relays need for distribution
 ({{I-D.ietf-moq-transport-19}}, Section 11.2.1.2).
 
@@ -1025,7 +1025,7 @@ Presence follows the V3C unit header except as noted below.
   receivers infer 0 when the field is absent ({{auxiliary}}).
 * `parameterSetId` is optional.
 * `tileId` is omitted unless the track carries a single atlas tile
-  ({{atlas-tiles}}).  It identifies the atlas carried by the track and 
+  ({{atlas-tiles}}).  It identifies the atlas carried by the track and
   is not derived from V3C unit-header field.
 
 `attributeIndex` identifies which AVD component a track carries.
@@ -1150,9 +1150,9 @@ select a compatible atlas track and VPS.
 ## Catalog Examples
 
 The following examples are non-normative but informative.
-For example, the timeline follows a 50-frame presentation 
-at 25 frames per second. These examples show two valid track 
-layouts. The active VPS determines which component tracks 
+For example, the timeline follows a 50-frame presentation
+at 25 frames per second. These examples show two valid track
+layouts. The active VPS determines which component tracks
 are present.  The examples use the recommended naming patterns in
 {{fig-track-names}}, but MOQT treats track names as opaque identifiers
 and does not infer component semantics from them.  Every media track shares
@@ -1160,7 +1160,7 @@ and does not infer component semantics from them.  Every media track shares
 same media timeline.  Video-coded tracks use `codec`
 `"hev1.1.6.L93.B0"`.  The `initDataList` `data` value is illustrative
 Base64 and is not a working VPS.  Attribute types are recovered from
-that VPS ({{vps-attribute-types}}), not from the track name. 
+that VPS ({{vps-attribute-types}}), not from the track name.
 MSF expresses both `trackDuration` and the template's
 `deltaMediaTime` in milliseconds ({{I-D.ietf-moq-msf}}).  For these
 examples:
@@ -1851,7 +1851,7 @@ Fallback:
   unit is too large (Option A) sufficient, or must a track declare a
   single forwarding preference?
 
-## Requested WG Input to Datagram Design Options 
+## Requested WG Input to Datagram Design Options
 
 The authors request comment on:
 
