@@ -2,7 +2,7 @@
 title: "Transport of V3C Bitstreams over Media over QUIC Transport (MOQT)"
 abbrev: "V3C over MOQT"
 category: info
-docname: draft-yuyou-moq-v3c-01
+docname: draft-yuyou-moq-v3c-latest
 ipr: trust200902
 submissiontype: IETF
 consensus: true
