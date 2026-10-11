@@ -2,7 +2,7 @@
 title: "Transport of V3C Bitstreams over Media over QUIC Transport (MOQT)"
 abbrev: "V3C over MOQT"
 category: info
-docname: draft-yuyou-moq-v3c-latest
+docname: draft-yuyou-moq-v3c-01
 ipr: trust200902
 submissiontype: IETF
 consensus: true
@@ -21,8 +21,8 @@ venue:
   type: "Working Group"
   mail: "moq@ietf.org"
   arch: "https://mailarchive.ietf.org/arch/browse/moq/"
-  github: "yuyou/v3c_moqt"
-  latest: "https://yuyou.github.io/v3c_moqt/draft-yuyou-moq-v3c.html"
+  github: yuyou/v3c
+  latest: https://yuyou.github.io/v3c/
 author:
   -
     ins: Y. You
@@ -53,7 +53,7 @@ author:
 normative:
   RFC4648:
   RFC9000:
-  I-D.ietf-moq-transport-19:
+  I-D.ietf-moq-transport-22:
   I-D.ietf-moq-msf:
   ISOIEC23090-5:
     title: "Information technology -- Coded representation of immersive media -- Part 5: Visual volumetric video-based coding (V3C) and video-based point cloud compression (V-PCC)"
@@ -131,13 +131,13 @@ summarizes an earlier unit-type list in which types 7 through 31 were
 reserved; this document follows {{ISOIEC23090-5}} for the current
 identifiers ({{v3c-track-identifiers}}).
 
-V3C defeins a generic high-level syntax for representing volumetric media as a collection of synchronized component bitstreams, together with signalling for their identification, configuration, and reconstructure.
+V3C defines a generic high-level syntax for representing volumetric media as a collection of synchronized component bitstreams, together with signalling for their identification, configuration, and reconstruction.
 {{ISOIEC23090-5}}, clause 6.3,
 defines application extensions that plug into that syntax:
 Video-based Point Cloud Compression (V-PCC) in Annex H of
 {{ISOIEC23090-5}}, MPEG Immersive Video (MIV) in {{ISOIEC23090-12}},
 and Video-based Dynamic Mesh Coding (V-DMC) in {{ISOIEC23090-29}}.
-This document maps the generic V3C unit stream to the MOQT data model.
+This document maps the generic V3C unit stream to the MOQT data model.  
 It does not specify
 V-PCC reconstruction, MIV camera or common-atlas payload syntax, or
 V-DMC mesh decoding.  Atlas and VPS extensions
@@ -145,7 +145,7 @@ V-DMC mesh decoding.  Atlas and VPS extensions
 `vps_extension`) remain inside VPS and atlas payloads.  Unknown
 `v3c.component` values are ignored ({{v3c-track-identifiers}}).
 
-Media over QUIC Transport (MOQT) {{I-D.ietf-moq-transport-19}} provides
+Media over QUIC Transport (MOQT) {{I-D.ietf-moq-transport-22}} provides
 publish/subscribe-based delivery over QUIC {{RFC9000}} and WebTransport.
 The MOQT Streaming Format (MSF) {{I-D.ietf-moq-msf}} defines a catalog,
 initialization data, time-aligned groups, and track selection on top
@@ -173,7 +173,7 @@ carrying it as a media packet stream.
 
 This document therefore defines a V3C packaging value for MSF,
 analogous to the way {{I-D.ietf-moq-cmsf}} adds CMAF packaging on top
-of MSF.  It operates at the streaming-format layer and does not modify MOQT.
+of MSF.  It operates at the streaming-format layer and does not modify MOQT.  
 {{ISOIEC23090-5}} specifies the
 V3C bitstream, VPS, and unit types.  {{ISOIEC23090-10}} specifies
 carriage of V3C data in the ISO Base Media File Format and Dynamic
@@ -181,8 +181,8 @@ Adaptive Streaming over HTTP (DASH).  {{RFC10034}} specifies carriage
 of V3C atlas data over RTP.  This document specifies carriage of the
 same V3C unit stream over MOQT, plus the manifest description using MSF Catalog.
 
-This document is written against draft-ietf-moq-transport-19 and thus uses
-MOQT version 19 terminology, including Object Forwarding Preference,
+This document is written against draft-ietf-moq-transport-22 and thus uses
+MOQT version 22 terminology, including Delivery Mode,
 Track Properties and Object Properties, SUBSCRIBE_TRACKS,
 REQUEST_UPDATE, PUBLISH_DONE, and the data-plane distinction between
 Subgroup stream delivery and Datagram delivery.
@@ -193,11 +193,7 @@ H.265/HEVC, H.266/VVC, or a V-DMC basemesh codec).  It specifies how
 already-encoded V3C components are packaged and transported using MSF
 and MOQT.   -->
 
-When Object Forwarding Preference Datagram is used, {{datagram-encoding}}
-constrains encoder slice and NAL unit size to the datagram limit of
-the underlying QUIC or WebTransport session.  That constraint is the
-working specification.  {{datagram-options}} is informative and records
-design alternatives on which Working Group input is requested.
+When Datagram delivery mode  is used, {{datagram-encoding}} requires the complete MOQT object to fit within the datagram size limit of the underlying QUIC or WebTransport session. To satisfy this requirement, an encoder can limit the sizes of slices and NAL units.  {{datagram-options}} informatively compares alternative approaches and lists questions for Working Group consideration.
 
 # Terminology
 
@@ -251,15 +247,18 @@ V3C temporal decoding interval:
 
 MOQT Track, Group, Subgroup, and Object:
 : The hierarchical data model elements defined by
-  {{I-D.ietf-moq-transport-19}} for naming, ordering, and transporting
+  {{I-D.ietf-moq-transport-22}} for naming, ordering, and transporting
   media objects.
 
-Object Forwarding Preference:
+Delivery Mode:
 : An enumeration associated with a MOQT object that indicates whether
   the object is sent on a subgroup stream (Subgroup) or as a single
-  object datagram (Datagram).  The preference is a property of an
-  individual object and can vary among objects in the same track
-  ({{I-D.ietf-moq-transport-19}}, Section 11).
+  object datagram (Datagram).  The Original Publisher establishes an
+  object's Delivery Mode by how it first transmits the object.  The
+  Delivery Mode is a property of an individual object and can vary
+  among objects in the same track.  In a subscription, an object MUST
+  be sent according to its Delivery Mode
+  ({{I-D.ietf-moq-transport-22}}, Sections 1.3 and 11).
 
 MSF Catalog:
 : The MSF catalog track defined in {{I-D.ietf-moq-msf}}, which
@@ -333,7 +332,7 @@ The mapping is:
 | :--- | :--- |
 | VPS | Catalog `initDataList` entry, referenced by `initRef` |
 | Each independently consumable component (AD, OVD, GVD, AVD, PVD, CAD, BMD, ADD) | One MSF track |
-| V3C composition unit, or IRAP-aligned run of composition units | MOQT Group, with equal Group IDs across time-aligned tracks |
+| V3C composition unit | One MOQT Group, with identical Group IDs for corresponding composition units across time-aligned tracks |
 | Coded V3C unit | MOQT Object |
 | NAL unit | Bytes inside the object payload |
 | Component identity (`vuh_*`) | Catalog `v3c` object |
@@ -373,9 +372,9 @@ In both modes, subscribers MUST have catalog metadata sufficient to
 identify required dependencies (for example atlas data required to
 interpret geometry or packed video) before decoding.
 
-Either mode MAY mix Object Forwarding Preference Subgroup and Datagram
-within a track or group, subject to {{objects-subgroups-datagrams}}
-and {{datagram-guidelines}}.
+Either mode MAY mix Delivery Mode Subgroup and Datagram within a
+track or group, subject to {{objects-subgroups-datagrams}} and
+{{datagram-guidelines}}.
 
 ## Tracks
 {: #tracks}
@@ -408,13 +407,13 @@ The VPS is not advertised as a continuously running media track
 ({{initialization}}).
 
 MOQT Track Names are opaque byte sequences
-({{I-D.ietf-moq-transport-19}}).  This specification defines the
+({{I-D.ietf-moq-transport-22}}).  This specification defines the
 following recommended UTF-8 naming patterns to make catalog entries
 readable.  The slash (`/`, byte `0x2f`) is an ordinary Track Name byte;
 it does not create MOQT namespace fields or otherwise have protocol
 semantics.  The Track Namespace remains separately encoded.  When a
-name is rendered using the safe serialization defined in Section 1.5
-of {{I-D.ietf-moq-transport-19}}, each slash is encoded as `.2f`; for
+name is rendered using the safe serialization defined in Section 8.8
+of {{I-D.ietf-moq-transport-22}}, each slash is encoded as `.2f`; for
 example, `v3c/attribute/0/0/0` is rendered as
 `v3c.2fattribute.2f0.2f0.2f0`.
 
@@ -686,7 +685,7 @@ data, then media, as shown in {{fig-join}}:
 ~~~
 Subscriber
     |
-    | SUBSCRIBE catalog (Joining FETCH, offset = 0)
+    | SUBSCRIBE catalog (FILL_PARAMETERS to Largest Object)
     v
 Catalog
     |
@@ -695,6 +694,7 @@ Catalog
 V3C initialization
     |
     | SUBSCRIBE component tracks at latest random-access Group
+    | (Location Filter + FILL_PARAMETERS)
     v
 Time-aligned Groups
     |
@@ -778,12 +778,14 @@ four-byte V3C unit header is not carried in the object.  Header
 fields needed to identify the component are advertised in the
 catalog `v3c` object ({{v3c-track-identifiers}}).
 
-MOQT version 19 defines an Object Forwarding Preference for each
-object ({{I-D.ietf-moq-transport-19}}, Section 11).  The forwarding
-preference can be Subgroup or Datagram, and it can vary among objects
-in the same track.
+MOQT defines a Delivery Mode for each object
+({{I-D.ietf-moq-transport-22}}, Section 1.3).  The Delivery Mode can
+be Subgroup or Datagram, and it can vary among objects in the same
+track.  The Original Publisher establishes the Delivery Mode by how it
+first transmits the object, and in a subscription an object MUST be
+sent according to its Delivery Mode.
 
-When an object has Object Forwarding Preference Subgroup, it is
+When an object has Delivery Mode Subgroup, it is
 delivered on a MOQT subgroup stream.  Subgroups provide ordered
 delivery on a single QUIC stream.  They MAY distinguish independently
 discardable layers of the same component, for example a base layer
@@ -810,7 +812,7 @@ of separating V3C component types; those are separate tracks
 single-track mode, subgroups MAY separate component types within the
 one track.
 
-When an object has Object Forwarding Preference Datagram, it is
+When an object has Delivery Mode Datagram, it is
 conveyed as a single MOQT object datagram.  Such an object is not sent
 in a subgroup and has no Subgroup ID.  Datagram delivery is suitable
 for V3C coded units where low latency is preferred over reliable
@@ -822,8 +824,8 @@ A sender using datagram delivery MUST ensure that the complete MOQT
 object header, any object properties, and the object payload fit
 within the maximum datagram size for the session.  If the total object
 size exceeds the maximum datagram size, the object will be dropped
-without explicit notification ({{I-D.ietf-moq-transport-19}},
-Section 11.3).  That session maximum is bounded by the underlying
+without explicit notification ({{I-D.ietf-moq-transport-22}},
+Section 11.2).  That session maximum is bounded by the underlying
 QUIC or WebTransport datagram limit ({{datagram-encoding}}).
 Application-level fragmentation of one coded V3C unit across multiple
 MOQT datagrams is unspecified.  For V3C units that may exceed the
@@ -861,12 +863,12 @@ A V3C publisher SHOULD prefer subgroup stream delivery for:
   required by the application.
 
 For datagram-delivered V3C objects, publishers SHOULD set delivery
-timeouts consistent with the media timeline.  In MOQT v19,
+timeouts consistent with the media timeline.  In MOQT,
 `OBJECT_DELIVERY_TIMEOUT` causes expired datagrams to be dropped.  For
-objects with Object Forwarding Preference Datagram,
+objects with Delivery Mode Datagram,
 `SUBGROUP_DELIVERY_TIMEOUT` acts the same way as
 `OBJECT_DELIVERY_TIMEOUT`; if both are non-zero, the smaller value is
-used ({{I-D.ietf-moq-transport-19}}, Section 8).  This behavior allows
+used ({{I-D.ietf-moq-transport-22}}, Section 5.2).  This behavior allows
 obsolete V3C objects to be discarded instead of increasing latency.
 
 Datagram objects remain schedulable MOQT objects and therefore
@@ -883,8 +885,8 @@ rendering needs, including via REQUEST_UPDATE.
 {: #datagram-encoding}
 
 QUIC DATAGRAM frames cannot be fragmented {{RFC9221}}.  When a
-publisher intends to send a coded V3C unit with Object Forwarding
-Preference Datagram, the encoder and the MOQT packager therefore share
+publisher intends to send a coded V3C unit with Delivery Mode
+Datagram, the encoder and the MOQT packager therefore share
 a size budget: the OBJECT_DATAGRAM that carries the unit, including
 its object header, object properties, and payload, MUST fit in a
 single datagram.
@@ -913,7 +915,7 @@ MOQT session, which is itself limited by the underlying transport:
 Each MOQT session along the path between the original publisher and
 the end subscriber can have a different maximum datagram size.
 Relays can also add Object Properties, which increase the encoded
-object ({{I-D.ietf-moq-transport-19}}, Section 11.3).  A publisher
+object ({{I-D.ietf-moq-transport-22}}, Section 11.2).  A publisher
 SHOULD treat the local session maximum as an upper bound and leave
 headroom for the OBJECT_DATAGRAM header, object properties, QUIC or
 HTTP Datagram framing, and downstream sessions.
@@ -954,9 +956,9 @@ present and MUST be populated with the value `v3c` as defined in
 Object payloads are the coded V3C unit bytes specified in
 {{objects-subgroups-datagrams}}. The payload is not a LOC sample and does not include a LOC header.  V3C
 identifiers used for track selection are signalled through the track-level catalog fields "v3c" defined in
-({{v3c-track-identifiers}}). Such information MUST not be carried in MOQT Object Properties.
+({{v3c-track-identifiers}}). Such information MUST not be carried in MOQT Object Properties.  
 MOQT Object Properties remain limited to information relays need for distribution
-({{I-D.ietf-moq-transport-19}}, Section 11.2.1.2).
+({{I-D.ietf-moq-transport-22}}, Section 11.1.2).
 
 # Catalog Signaling for V3C
 {: #catalog}
@@ -1025,7 +1027,7 @@ Presence follows the V3C unit header except as noted below.
   receivers infer 0 when the field is absent ({{auxiliary}}).
 * `parameterSetId` is optional.
 * `tileId` is omitted unless the track carries a single atlas tile
-  ({{atlas-tiles}}).  It identifies the atlas carried by the track and
+  ({{atlas-tiles}}).  It identifies the atlas carried by the track and 
   is not derived from V3C unit-header field.
 
 `attributeIndex` identifies which AVD component a track carries.
@@ -1150,9 +1152,9 @@ select a compatible atlas track and VPS.
 ## Catalog Examples
 
 The following examples are non-normative but informative.
-For example, the timeline follows a 50-frame presentation
-at 25 frames per second. These examples show two valid track
-layouts. The active VPS determines which component tracks
+For example, the timeline follows a 50-frame presentation 
+at 25 frames per second. These examples show two valid track 
+layouts. The active VPS determines which component tracks 
 are present.  The examples use the recommended naming patterns in
 {{fig-track-names}}, but MOQT treats track names as opaque identifiers
 and does not infer component semantics from them.  Every media track shares
@@ -1160,7 +1162,7 @@ and does not infer component semantics from them.  Every media track shares
 same media timeline.  Video-coded tracks use `codec`
 `"hev1.1.6.L93.B0"`.  The `initDataList` `data` value is illustrative
 Base64 and is not a working VPS.  Attribute types are recovered from
-that VPS ({{vps-attribute-types}}), not from the track name.
+that VPS ({{vps-attribute-types}}), not from the track name. 
 MSF expresses both `trackDuration` and the template's
 `deltaMediaTime` in milliseconds ({{I-D.ietf-moq-msf}}).  For these
 examples:
@@ -1182,13 +1184,13 @@ location[n] = [1, n]
 
 The first frame starts at 0 ms at Group 1, Object 0.  The last frame
 starts at 1960 ms at Group 1, Object 49 and ends at the 2000 ms track
-duration.  A Standalone FETCH covering all 50 Objects consequently
-uses start Location `[1, 0]` and exclusive end Location `[1, 50]`, as
-specified by {{I-D.ietf-moq-transport-19}}.  The `timescale` value does
+duration.  A FETCH covering all 50 Objects consequently
+uses a Location Filter with start Location `[1, 0]` and inclusive end
+Location `[1, 49]`, as specified by {{I-D.ietf-moq-transport-22}}.  The `timescale` value does
 not scale these template values; the template interval is explicitly
 in milliseconds.
 
-The examples illustrate Gaussian Splating (GS) content conforming to the
+The examples illustrate Gaussian Splatting (GS) content conforming to the
 V-PCC GS or V-PCC GS Still toolset profile component of
 {{ISOIEC23090-5}}.  Annex A identifies those profile components and
 their profile, tier, and level signaling; Annex H specifies their
@@ -1487,7 +1489,7 @@ these attributes is split across partitions.
 
 MOQT supports prioritization of delivery under congestion through
 subscriber priority and publisher priority
-({{I-D.ietf-moq-transport-19}}, Section 7).  Priority values range from 0
+({{I-D.ietf-moq-transport-22}}, Section 5.1).  Priority values range from 0
 to 255, where lower numeric values indicate higher priority.  Publisher
 priority can be provided as a default track property
 (`DEFAULT_PUBLISHER_PRIORITY`) and can also be set per subgroup or
@@ -1550,7 +1552,7 @@ at encode time rather than by fragmenting NAL units across datagrams
 # Security Considerations
 
 This document inherits the security considerations of MOQT
-{{I-D.ietf-moq-transport-19}}, QUIC {{RFC9000}}, and MSF
+{{I-D.ietf-moq-transport-22}}, QUIC {{RFC9000}}, and MSF
 {{I-D.ietf-moq-msf}}.  In particular, publishers and relays must
 consider resource exhaustion attacks caused by large numbers of
 tracks, objects, subgroups, or datagrams, and must validate bounds
@@ -1623,8 +1625,8 @@ Working Group input is requested.
 
 ## Problem
 
-{{I-D.ietf-moq-transport-19}}, Section 11.3, maps one MOQT object with
-Object Forwarding Preference Datagram to one OBJECT_DATAGRAM.  If the
+{{I-D.ietf-moq-transport-22}}, Section 11.2, maps one MOQT object with
+Delivery Mode Datagram to one OBJECT_DATAGRAM.  If the
 object header, object properties, and payload exceed the session
 maximum datagram size, the object is dropped without notification.
 Each hop can have a different maximum.  Relays can add Object
@@ -1686,7 +1688,7 @@ This document currently specifies Option A.
 
 ## Option B: NAL Unit or Slice as Datagram Object
 
-When Object Forwarding Preference is Datagram, each independently
+When Delivery Mode is Datagram, each independently
 packetizable NAL unit or coded slice is one MOQT Object.  Object IDs
 increase in decoding order within the Group.  Small NAL units MAY
 share one object when they fit.  Subgroup delivery can keep the
@@ -1785,13 +1787,13 @@ Cons:
 ## Option E: Datagrams Only for Units That Already Fit
 
 Do not try to place ordinary video or atlas access units in datagrams.
-Use Object Forwarding Preference Datagram only for units that are
+Use Delivery Mode Datagram only for units that are
 already small and independently useful, for example viewport tiles,
 optional enhancement data, or small atlas NAL units.  Use subgroup
 streams for reconstruction-critical and oversized coded units.
 
 ~~~
-Track (mixed forwarding preference)
+Track (mixed delivery modes)
 Group n
     Subgroup 0     base geometry AU     stream
     Datagram       optional tile / LoD  DATAGRAM
@@ -1804,7 +1806,7 @@ Pros:
   not datagram what does not fit".
 * Matches MOQT's existing drop-if-too-large rule and the permission
   to mix Subgroup and Datagram in one track
-  ({{I-D.ietf-moq-transport-19}}, Section 11).
+  ({{I-D.ietf-moq-transport-22}}, Section 11).
 * Reconstruction-critical data keeps reliable ordered delivery.
 
 Cons:
@@ -1836,9 +1838,10 @@ Budget signaling:
 Path heterogeneity:
 : The original publisher knows only the first hop.  Should a relay
   that cannot forward an OBJECT_DATAGRAM on a smaller downstream
-  session drop it (current MOQT), rewrite Object Forwarding Preference
-  to Subgroup, or require the publisher to leave headroom?  Rewriting
-  forwarding preference is a MOQT question.
+  session drop it (current MOQT), or must the publisher leave
+  headroom?  MOQT version 22 requires an object in a subscription to
+  be sent according to its Delivery Mode, so a relay cannot rewrite
+  Datagram delivery to a subgroup stream.
 
 Relay inflation:
 : How much headroom should a publisher reserve for Object Properties
@@ -1849,15 +1852,15 @@ Fallback:
 : MOQT already allows mixing Subgroup and Datagram in one track.
   Is per-object fallback from Datagram to Subgroup when the encoded
   unit is too large (Option A) sufficient, or must a track declare a
-  single forwarding preference?
+  single delivery mode?
 
-## Requested WG Input to Datagram Design Options
+## Requested WG Input to Datagram Design Options 
 
 The authors request comment on:
 
 1. Whether Option A should remain the V3C mapping for datagrams.
 2. Whether Option B should be permitted or required when Datagram
-   forwarding is used, including for atlas tiles.
+   delivery is used, including for atlas tiles.
 3. Whether Option C belongs in this document, in MSF, or not at
    all.
 4. Whether Option D (RTP structures inside MOQT objects) should stay
