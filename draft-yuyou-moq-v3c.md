@@ -53,8 +53,29 @@ author:
 normative:
   RFC4648:
   RFC9000:
-  I-D.ietf-moq-transport-22:
+  RFC9221:
+  I-D.ietf-moq-transport-23:
   I-D.ietf-moq-msf:
+  I-D.ietf-moq-loc:
+  ISOIEC14496-12:
+    title: "Information technology -- Coding of audio-visual objects -- Part 12: ISO base media file format"
+    author:
+      - org: ISO/IEC
+    seriesinfo:
+      ISO/IEC: 14496-12
+  ISOIEC14496-15:
+    title: "Information technology -- Coding of audio-visual objects -- Part 15: Carriage of network abstraction layer (NAL) unit structured video in the ISO base media file format"
+    author:
+      - org: ISO/IEC
+    seriesinfo:
+      ISO/IEC: 14496-15
+  ISOIEC23090-10:
+    title: "Information technology -- Coded representation of immersive media -- Part 10: Carriage of visual volumetric video-based coding data"
+    author:
+      - org: ISO/IEC
+    date: 2026
+    seriesinfo:
+      ISO/IEC: "23090-10:2026 (DIS)"
   ISOIEC23090-5:
     title: "Information technology -- Coded representation of immersive media -- Part 5: Visual volumetric video-based coding (V3C) and video-based point cloud compression (V-PCC)"
     author:
@@ -66,9 +87,7 @@ normative:
 
 informative:
   RFC10034:
-  RFC9221:
   I-D.ietf-moq-cmsf:
-  I-D.ietf-moq-loc:
   I-D.ietf-webtrans-http3:
   I-D.ietf-webtrans-overview:
   I-D.ietf-moq-secure-objects:
@@ -77,14 +96,6 @@ informative:
     author:
       - org: World Wide Web Consortium
     target: https://www.w3.org/TR/webcodecs/
-  ISOIEC23090-10:
-    title: "Information technology -- Coded representation of immersive media -- Part 10: Carriage of visual volumetric video-based coding data"
-    author:
-      - org: ISO/IEC
-    date: 2022
-    seriesinfo:
-      ISO/IEC: 23090-10:2022
-    target: https://www.iso.org/standard/78991.html
   ISOIEC23090-12:
     title: "Information technology -- Coded representation of immersive media -- Part 12: MPEG Immersive video (MIV)"
     author:
@@ -110,9 +121,10 @@ This document specifies a mapping and packaging for transporting
 ISO/IEC 23090-5 Visual Volumetric Video-based Coding (V3C) bitstreams
 over Media over QUIC Transport (MOQT).  The mapping uses the MOQT
 Streaming Format (MSF): V3C configuration is MSF initialization data,
-each independently consumable V3C component is an MSF track, a V3C
-composition unit is a MOQT Group, and a coded V3C unit is a MOQT
-Object.  Relays remain unaware of V3C syntax.  V3C knowledge is
+each independently consumable V3C component is an MSF track, a run of
+V3C composition units that starts at a random access point is a MOQT
+Group, and the coded data of one component for one composition unit
+is a MOQT Object.  Relays remain unaware of V3C syntax.  V3C knowledge is
 confined to the streaming-format layer.
 
 --- middle
@@ -131,28 +143,29 @@ summarizes an earlier unit-type list in which types 7 through 31 were
 reserved; this document follows {{ISOIEC23090-5}} for the current
 identifiers ({{v3c-track-identifiers}}).
 
-V3C defines a generic high-level syntax for representing volumetric media as a collection of synchronized component bitstreams, together with signalling for their identification, configuration, and reconstruction.
-{{ISOIEC23090-5}}, clause 6.3,
+V3C defines a generic high-level syntax for representing volumetric
+media as a collection of synchronized component bitstreams, together
+with signaling for their identification, configuration, and
+reconstruction.  {{ISOIEC23090-5}}, Clause 6.3,
 defines application extensions that plug into that syntax:
 Video-based Point Cloud Compression (V-PCC) in Annex H of
 {{ISOIEC23090-5}}, MPEG Immersive Video (MIV) in {{ISOIEC23090-12}},
 and Video-based Dynamic Mesh Coding (V-DMC) in {{ISOIEC23090-29}}.
-This document maps the generic V3C unit stream to the MOQT data model.  
-It does not specify
-V-PCC reconstruction, MIV camera or common-atlas payload syntax, or
-V-DMC mesh decoding.  Atlas and VPS extensions
-(`asps_vpcc_extension`, `asps_miv_extension`, `asps_vdmc_extension`,
-`vps_extension`) remain inside VPS and atlas payloads.  Unknown
-`v3c.component` values are ignored ({{v3c-track-identifiers}}).
+This document maps the generic V3C unit stream to the MOQT data
+model.  It does not specify V-PCC reconstruction, MIV camera or
+common-atlas payload syntax, or V-DMC mesh decoding.  Atlas and VPS
+extensions (`asps_vpcc_extension`, `asps_miv_extension`,
+`asps_vdmc_extension`, `vps_extension`) remain inside VPS and atlas
+payloads.
 
-Media over QUIC Transport (MOQT) {{I-D.ietf-moq-transport-22}} provides
+Media over QUIC Transport (MOQT) {{I-D.ietf-moq-transport-23}} provides
 publish/subscribe-based delivery over QUIC {{RFC9000}} and WebTransport.
 The MOQT Streaming Format (MSF) {{I-D.ietf-moq-msf}} defines a catalog,
 initialization data, time-aligned groups, and track selection on top
-of MOQT.  MSF currently mandates Low Overhead Container (LOC)
-{{I-D.ietf-moq-loc}} packaging, in which each encoded audio or video
-sample is one MOQT Object and a group of pictures occupies one MOQT
-Group.
+of MOQT.  MSF defines Low Overhead Container (LOC) {{I-D.ietf-moq-loc}}
+packaging for audio and video ({{I-D.ietf-moq-msf}}, Section 4.1), in
+which each encoded audio or video sample is one MOQT Object and the
+samples of a group of pictures are placed in one MOQT Group.
 
 The LOC sample model is insufficient for V3C.  Atlas data does not
 have the semantics of an encoded video sample represented by the
@@ -173,27 +186,34 @@ carrying it as a media packet stream.
 
 This document therefore defines a V3C packaging value for MSF,
 analogous to the way {{I-D.ietf-moq-cmsf}} adds CMAF packaging on top
-of MSF.  It operates at the streaming-format layer and does not modify MOQT.  
-{{ISOIEC23090-5}} specifies the
+of MSF.  It operates at the streaming-format layer and does not
+modify MOQT.  {{ISOIEC23090-5}} specifies the
 V3C bitstream, VPS, and unit types.  {{ISOIEC23090-10}} specifies
 carriage of V3C data in the ISO Base Media File Format and Dynamic
 Adaptive Streaming over HTTP (DASH).  {{RFC10034}} specifies carriage
 of V3C atlas data over RTP.  This document specifies carriage of the
-same V3C unit stream over MOQT, plus the manifest description using MSF Catalog.
+same V3C components over MOQT and their description in the MSF
+catalog.
 
-This document is written against draft-ietf-moq-transport-22 and thus uses
-MOQT version 22 terminology, including Delivery Mode,
+This document is written against draft-ietf-moq-transport-23 and thus uses
+MOQT version 23 terminology, including Delivery Mode,
 Track Properties and Object Properties, SUBSCRIBE_TRACKS,
 REQUEST_UPDATE, PUBLISH_DONE, and the data-plane distinction between
-Subgroup stream delivery and Datagram delivery.
+Subgroup stream delivery and Datagram delivery.  {{I-D.ietf-moq-msf}}
+is written against an earlier MOQT version and requires a Joining
+FETCH to obtain the catalog; draft-ietf-moq-transport-23 replaces
+Joining FETCH with fill fetch streams requested using FILL_PARAMETERS.
+This document uses the MOQT version 23 mechanism ({{join}}).
 
-<!-- This document does not redefine V3C bitstream syntax or semantics.  It
-does not specify a video or mesh codec for V3C components (for example
-H.265/HEVC, H.266/VVC, or a V-DMC basemesh codec).  It specifies how
-already-encoded V3C components are packaged and transported using MSF
-and MOQT.   -->
+This document does not redefine V3C bitstream syntax or semantics,
+and it does not specify a video or mesh codec for V3C components.
 
-When Datagram delivery mode  is used, {{datagram-encoding}} requires the complete MOQT object to fit within the datagram size limit of the underlying QUIC or WebTransport session. To satisfy this requirement, an encoder can limit the sizes of slices and NAL units.  {{datagram-options}} informatively compares alternative approaches and lists questions for Working Group consideration.
+When Datagram delivery is used, {{datagram-encoding}} requires the
+complete MOQT Object to fit within the datagram size limit of the
+underlying QUIC or WebTransport session.  To satisfy this
+requirement, an encoder can limit the sizes of slices and NAL units.
+{{datagram-options}} compares alternative approaches and lists
+questions for Working Group consideration.
 
 # Terminology
 
@@ -210,17 +230,17 @@ V3C component:
   in this mapping.
 
 V3C parameter set (VPS):
-: The syntax structure contains elements that apply to zero or more
-  coded V3C sequences, as defined in {{ISOIEC23090-5}}.  The VPS is
+: A syntax structure containing syntax elements that apply to zero or
+  more coded V3C sequences, as defined in {{ISOIEC23090-5}}.  The VPS is
   configuration, not a temporal media component.  Among other
   decoder resources, it maps each attribute index to an attribute
   type ({{vps-attribute-types}}) and indicates which component
   sub-bitstreams are present ({{component-presence}}).
 
 Attribute:
-: Scalar or vector property optionally associated with each point
-  in a volumetric frame, such as color, reflectance, surface
-  normal, timestamps, or material ID ({{RFC10034}}).
+: A scalar or vector property optionally associated with each point
+  in a volumetric frame, such as color, reflectance, surface normal,
+  transparency, or material ID ({{ISOIEC23090-5}}).
 
 V3C unit:
 : A V3C unit header and payload as defined in {{ISOIEC23090-5}}.  The
@@ -229,25 +249,25 @@ V3C unit:
   ({{RFC10034}}, Section 4.3.1; {{v3c-track-identifiers}}).
 
 Coded V3C unit:
-: The independently processable coded payload of one V3C component for
-  one temporal decoding interval, typically one coded atlas access
-  unit or one coded video access unit.  Network Abstraction Layer
-  (NAL) units, when used by the underlying codec, are contained in
-  this payload; they are not the MOQT Object boundary.
+: The coded data of one V3C component for one V3C composition unit,
+  typically one coded atlas access unit or one coded video access
+  unit.  Network Abstraction Layer (NAL) units, when used by the
+  underlying codec, are contained in this payload; they are not the
+  MOQT Object boundary.
 
 V3C composition unit:
 : The set of all sub-bitstream composition units that share the same
   composition time, as defined in {{ISOIEC23090-5}}.  One composition
   unit reconstructs one coded volumetric frame.
 
-V3C temporal decoding interval:
-: One V3C composition unit, or a publisher-chosen run of composition
-  units that all start at an intra random access point (IRAP) on
-  every carried component.
+IRAP composition unit:
+: A V3C composition unit in which every carried component starts with
+  an intra random access point (IRAP), as defined in
+  {{ISOIEC23090-5}}.
 
 MOQT Track, Group, Subgroup, and Object:
 : The hierarchical data model elements defined by
-  {{I-D.ietf-moq-transport-22}} for naming, ordering, and transporting
+  {{I-D.ietf-moq-transport-23}} for naming, ordering, and transporting
   media objects.
 
 Delivery Mode:
@@ -256,9 +276,9 @@ Delivery Mode:
   object datagram (Datagram).  The Original Publisher establishes an
   object's Delivery Mode by how it first transmits the object.  The
   Delivery Mode is a property of an individual object and can vary
-  among objects in the same track.  In a subscription, an object MUST
-  be sent according to its Delivery Mode
-  ({{I-D.ietf-moq-transport-22}}, Sections 1.3 and 11).
+  among objects in the same track.  In a subscription, an object is
+  sent according to its Delivery Mode
+  ({{I-D.ietf-moq-transport-23}}, Sections 2.1 and 2.1.1).
 
 MSF Catalog:
 : The MSF catalog track defined in {{I-D.ietf-moq-msf}}, which
@@ -271,8 +291,8 @@ All requirements and terminology in {{I-D.ietf-moq-msf}} apply unless
 this document states otherwise.  This specification adds:
 
 * the catalog packaging value `v3c` ({{v3c-packaging-type}});
-* rules for carrying a VPS in the catalog Initialization Data List
-  ({{initialization}});
+* rules for carrying the VPS and component decoder configuration in
+  the catalog Initialization Data List ({{initialization}});
 * recovery of attribute type from that VPS
   ({{vps-attribute-types}});
 * a track-level `v3c` object that copies identifiers from the V3C
@@ -330,15 +350,16 @@ The mapping is:
 
 | V3C | MSF / MOQT |
 | :--- | :--- |
-| VPS | Catalog `initDataList` entry, referenced by `initRef` |
+| VPS | `V3CDecoderConfigurationRecord` in `initDataList`, referenced by the atlas track `initRef` |
+| Component decoder configuration | `initDataList` entry referenced by the component track `initRef` |
 | Each independently consumable component (AD, OVD, GVD, AVD, PVD, CAD, BMD, ADD) | One MSF track |
-| V3C composition unit | One MOQT Group, with identical Group IDs for corresponding composition units across time-aligned tracks |
-| Coded V3C unit | MOQT Object |
+| Run of V3C composition units starting at an IRAP composition unit | One MOQT Group, with identical Group IDs across time-aligned tracks |
+| Coded V3C unit (one component, one composition unit) | One MOQT Object |
 | NAL unit | Bytes inside the object payload |
 | Component identity (`vuh_*`) | Catalog `v3c` object |
 | Decode dependency | Catalog `depends` |
 | Same presentation | Catalog `renderGroup` |
-| Alternate quality of one component | Catalog `altGroup` |
+| Alternate quality of one component, including V-DMC GVD and ADD displacement | Catalog `altGroup` |
 {: #tbl-mapping title="V3C to MSF/MOQT mapping"}
 
 # Mapping V3C to the MOQT Object Model
@@ -346,7 +367,7 @@ The mapping is:
 
 ## Encapsulation Modes
 
-The recommended encapsulation is multi-track:
+This document specifies multi-track encapsulation. 
 
 Multi-track mode:
 : Each independently consumable V3C component is carried on its own
@@ -356,17 +377,22 @@ Multi-track mode:
   are separate tracks that share an `altGroup`
   ({{alternate-groups}}).
 
-Single-track / multi-subgroup mode (NOT RECOMMENDED):
-: Multiple V3C components MAY be carried in one MOQT track and
-  separated into distinct subgroups.  This alternative reduces the
-  number of subscriptions, but it prevents per-component subscription
-  and independent ABR switching of one component versus another, and therefore
-  is NOT RECOMMENDED.  When it is used, the publisher still MUST
-  time-align objects that reconstruct the same volumetric frame, and
-  the catalog MUST identify that the track uses V3C packaging.  The
-  per-track `v3c` identifier object in {{v3c-track-identifiers}}
-  applies to a track that carries a single component; mixed-component
-  tracks are otherwise unspecified.
+Single-track mode:
+: All V3C components are carried in one MOQT track.  Each Object
+  carries one complete V3C composition unit in the `V3CBitstreamSample`
+  format ({{ISOIEC23090-10}}, Clause 7.3.1.2): a sequence of V3C units,
+  each preceded by a length field and each including its four-byte V3C
+  unit header.  The size of the length field is given by
+  `unit_size_precision_bytes_minus1` in the
+  `V3CDecoderConfigurationRecord` that the track references with
+  `initRef` ({{initialization}}).  This mode reduces the number of
+  subscriptions, but it prevents per-component subscription,
+  prioritization, and independent adaptive bitrate switching, and
+  therefore is NOT RECOMMENDED.  The catalog `v3c` object of such a
+  track omits all fields except `parameterSetId`
+  ({{v3c-track-identifiers}}).  Carriage of video decoder
+  configuration for this mode is not specified by this document.
+  <!-- TODO: specify video decoder configuration for single-track mode, or remove the mode. -->
 
 In both modes, subscribers MUST have catalog metadata sufficient to
 identify required dependencies (for example atlas data required to
@@ -375,6 +401,10 @@ interpret geometry or packed video) before decoding.
 Either mode MAY mix Delivery Mode Subgroup and Datagram within a
 track or group, subject to {{objects-subgroups-datagrams}} and
 {{datagram-guidelines}}.
+
+> Editor's note: Datagram delivery may not be recommended and may be
+> removed from the scope of the next revision of this document.
+{: gi="aside"}
 
 ## Tracks
 {: #tracks}
@@ -385,6 +415,7 @@ active VPS (including any VPS packed-video extension) indicates that the compone
 present ({{component-presence}}).  The offered set MAY include:
 
 * atlas data (V3C_AD);
+* atlas tile data (role v3c-atlas-tile), when an atlas frame is partitioned into spatial tiles ({{atlas-tiles}});
 * occupancy video data (V3C_OVD), when present;
 * geometry video data (V3C_GVD), when present;
 * one track per attribute (V3C_AVD) that the publisher offers
@@ -400,22 +431,32 @@ Occupancy video, geometry video, attribute video, packed video,
 common atlas, basemesh, and displacement are optional at the V3C
 layer.  A presentation MUST NOT be assumed to contain atlas,
 occupancy, geometry, and attribute video tracks together.  Packed
-video MAY be the only video component.  Geometry video MAY be absent
-when a mesh application carries basemesh data instead of GVD.
+video MAY be the only video component.
+
+In Video-based Dynamic Mesh Coding (V-DMC) {{ISOIEC23090-29}},
+basemesh data carries the base mesh.  Displacement vectors are
+carried either as geometry video data (V3C_GVD) or as
+arithmetic-coded displacement data (V3C_ADD).  For a given atlas,
+those two forms are mutually exclusive in the VPS.  A geometry track
+in that case carries video-coded displacement; it does not replace
+the basemesh track.  Selection between the two forms is specified in
+{{alternate-groups}}.
 
 The VPS is not advertised as a continuously running media track
 ({{initialization}}).
 
 MOQT Track Names are opaque byte sequences
-({{I-D.ietf-moq-transport-22}}).  This specification defines the
+({{I-D.ietf-moq-transport-23}}).  This specification defines the
 following recommended UTF-8 naming patterns to make catalog entries
 readable.  The slash (`/`, byte `0x2f`) is an ordinary Track Name byte;
 it does not create MOQT namespace fields or otherwise have protocol
 semantics.  The Track Namespace remains separately encoded.  When a
 name is rendered using the safe serialization defined in Section 8.8
-of {{I-D.ietf-moq-transport-22}}, each slash is encoded as `.2f`; for
+of {{I-D.ietf-moq-transport-23}}, each slash is encoded as `.2f`; for
 example, `v3c/attribute/0/0/0` is rendered as
-`v3c.2fattribute.2f0.2f0.2f0`.
+`v3c.2fattribute.2f0.2f0.2f0`.  The hyphen is also not rendered
+verbatim; `v3c/common-atlas` is rendered as
+`v3c.2fcommon.2datlas`.
 
 The angle-bracketed identifiers in these patterns are replaced by
 their non-negative decimal values:
@@ -428,6 +469,8 @@ v3c/geometry/<atlasId>
 v3c/geometry/<atlasId>/<mapIndex>
 v3c/geometry/<atlasId>/<mapIndex>/aux
 v3c/attribute/<atlasId>/<attributeIndex>/<attributePartitionIndex>
+v3c/attribute/<atlasId>/<attributeIndex>/<attributePartitionIndex>/<mapIndex>
+v3c/attribute/<atlasId>/<attributeIndex>/<attributePartitionIndex>/<mapIndex>/aux
 v3c/packed/<atlasId>
 v3c/packed/<atlasId>/<packedMapIndex>
 v3c/basemesh/<atlasId>
@@ -452,8 +495,9 @@ Subscribers obtain V3C component tracks using MOQT subscription
 procedures.  A subscriber MAY send SUBSCRIBE for an individual
 component track, or SUBSCRIBE_TRACKS to request publication of tracks
 in a namespace that match advertised catalog metadata and filters.
-A subscriber MAY later send REQUEST_UPDATE to change forwarding
-state, filters, or subscriber priority.  A publisher or relay
+A subscriber MAY later send REQUEST_UPDATE to pause or resume
+forwarding, or to change filters or subscriber priority
+({{I-D.ietf-moq-transport-23}}, Section 9.5).  A publisher or relay
 terminates an established subscription by sending PUBLISH_DONE.
 
 ### Component Presence
@@ -514,7 +558,7 @@ advertised when the flag is 0.
 ### Atlas Tiles
 {: #atlas-tiles}
 
-{{ISOIEC23090-5}}, clause 7.4, permits an atlas frame to be
+{{ISOIEC23090-5}}, Clause 7.4, permits an atlas frame to be
 partitioned into non-overlapping rectangular tiles.  One atlas coding
 layer (ACL) NAL unit carries one tile.  Tiles MAY align with video
 slices or subpictures.  {{RFC10034}} signals a tile subset with
@@ -525,12 +569,15 @@ The default mapping in this document is that all tiles of an atlas
 stay in one atlas track.  One coded atlas access unit is one MOQT
 Object.
 
-A publisher MAY expose one track per atlas tile.  Such a track
-includes `v3c.tileId`, which copies the atlas tile identifier.  Video,
-basemesh, or displacement tracks that are spatially aligned with that
-tile SHOULD list the tile track in `depends`.  Per-tile tracks are
-not required.  This document does not require viewport-driven
-delivery.
+A publisher MAY expose atlas tile tracks.  An atlas tile track
+carries only the ACL NAL units of its tile; the atlas parameter sets
+and the VPS remain in the atlas track ({{ISOIEC23090-10}},
+Clause 7.3.2.2).  An atlas tile track includes `v3c.tileId`, lists
+the atlas track in `depends`, and references the same `initDataList`
+entry as the atlas track.  Video, basemesh, or displacement tracks
+that are spatially aligned with that tile SHOULD also list the tile
+track in `depends`.  Per-tile tracks are not required.  This document
+does not require viewport-driven delivery.
 
 ## Initialization Data
 {: #initialization}
@@ -539,14 +586,37 @@ The VPS MUST be provided as MSF initialization data, not as a
 continuously running media track.  This matches the out-of-band VPS
 treatment in {{RFC10034}} (`sprop-v3c-parameter-set`).
 
-A publisher includes the VPS in the catalog `initDataList`
-({{I-D.ietf-moq-msf}}, Section 5.1.7) as an entry with `type` equal
-to `inline`.  The `data` value is the Base64 encoding {{RFC4648}} of
-the `v3c_parameter_set()` syntax structure defined in
-{{ISOIEC23090-5}}, using the same payload as
-`sprop-v3c-parameter-set` in {{RFC10034}}.  The entry's `id` MUST be
-unique within the catalog.  Every V3C-packaged media track that
-depends on that VPS MUST set `initRef` to that `id`.
+Each V3C-packaged track references one decoder configuration record
+with `initRef` ({{I-D.ietf-moq-msf}}, Section 5.2.13).  The record is
+carried in the catalog `initDataList` ({{I-D.ietf-moq-msf}},
+Section 5.1.7) as an entry with `type` equal to `inline`, whose
+`data` value is the Base64 encoding {{RFC4648}} of the record.  The
+record is the structure that {{ISOIEC23090-10}} or
+{{ISOIEC14496-15}} places in the corresponding ISOBMFF sample entry,
+without the enclosing box header:
+
+| Track | Decoder configuration record |
+| :--- | :--- |
+| Atlas (V3C_AD), common atlas (V3C_CAD) | `V3CDecoderConfigurationRecord` with version 1 ({{ISOIEC23090-10}}, Clause 6.2.1) |
+| Atlas tile | The record of the atlas track that the tile track depends on |
+| Video (V3C_OVD, V3C_GVD, V3C_AVD, V3C_PVD) | Decoder configuration record of the video codec, for example `HEVCDecoderConfigurationRecord` ({{ISOIEC14496-15}}) |
+| Basemesh (V3C_BMD) | `BaseMeshDecoderConfigurationRecord` ({{ISOIEC23090-10}}, Clause 6.2.2) |
+| Displacement (V3C_ADD) | `ACDisplacementDecoderConfigurationRecord` ({{ISOIEC23090-10}}, Clause 6.2.3) |
+{: #tbl-init title="Decoder configuration record referenced by initRef"}
+
+The `V3CDecoderConfigurationRecord` of the atlas track carries the
+active VPS as a complete V3C unit of type V3C_VPS, including its V3C
+unit header ({{ISOIEC23090-10}}, Clause 6.2.1).  This differs from
+`sprop-v3c-parameter-set` in {{RFC10034}}, which carries only the
+`v3c_parameter_set()` syntax structure.  The record MAY also carry
+atlas parameter sets and SEI messages in its setup unit arrays.
+
+Other V3C component tracks do not reference the VPS directly.  Each
+such track lists the atlas track in `depends` ({{dependencies}}), and
+a receiver obtains the VPS from the record of that atlas track.  The
+`id` of each `initDataList` entry MUST be unique within the catalog.
+Tracks that use identical decoder configuration MAY reference the
+same entry.
 
 ### Contents of the VPS
 {: #vps}
@@ -569,8 +639,8 @@ attribute video data (V3C_AVD), occupancy video data (V3C_OVD), and
 packed video data (V3C_PVD) do not use a separate parameter set for
 each media type.  Every such unit carries `vuh_v3c_parameter_set_id`
 and thereby refers to that same active VPS.  The catalog records
-that VPS once, as the `initDataList` entry whose `id` those tracks
-cite in `initRef` ({{initialization}}).
+that VPS once, in the decoder configuration record of the atlas
+track ({{initialization}}).
 
 The VPS is sequence-level configuration for the CVS, not a
 per-component parameter set.  It includes the atlas geometry configuration in
@@ -580,8 +650,7 @@ depths), and attribute configuration in `attribute_information()`.
 type, such as texture or, for a Gaussian splatting representation,
 spherical harmonics, scale, rotation, or opacity
 ({{vps-attribute-types}}). This document does not specify Gaussian
-reconstruction; the shared VPS is still the initialization data
-those tracks reference.
+reconstruction.
 
 A receiver uses the VPS to determine the resources required to
 decode and reconstruct the bitstream: which atlas, occupancy,
@@ -598,32 +667,30 @@ catalog.  Profile, tier, and level, including `ptl_max_decodes_idc`,
 are recovered from the VPS; they are not duplicated as catalog
 fields.
 
-Initialization data is VPS-only.  Atlas sequence parameter sets
-(ASPS), atlas frame parameter sets (AFPS), common-atlas parameter
-sets, and Supplemental Enhancement Information (SEI) remain in the
-atlas and CAD object payloads, in the same way that video sequence
-parameter sets remain in OVD, GVD, AVD, or PVD object payloads.
-IRAP group boundaries already carry those parameter sets.
-{{ISOIEC23090-10}} allows a `v3cC` sample entry to stash ASPS, AFPS,
-and SEI in addition to the VPS.  This document does not define a
-second initialization blob for those structures.
+Atlas sequence parameter sets (ASPS), atlas frame parameter sets
+(AFPS), and Supplemental Enhancement Information (SEI) messages MAY
+be carried in the setup unit arrays of the
+`V3CDecoderConfigurationRecord`, in the atlas Objects, or in both,
+subject to the `array_completeness` values of the record
+({{ISOIEC23090-10}}, Clause 6.2.1).  Because every Group starts with
+an IRAP composition unit ({{groups}}), a publisher that does not mark
+those arrays complete SHOULD repeat the parameter sets in the first
+atlas Object of each Group.
 
 Video-codec configuration for OVD, GVD, AVD, or PVD (for example HEVC
-or VVC sequence parameter sets) is not part of the VPS.  It is
-carried in-band in the component bitstream, or by whatever
-out-of-band mechanism the video codec already uses.  This document
-does not concatenate video-codec parameter sets with the V3C VPS in
-`initDataList`.  Basemesh and displacement codec configuration, when
-used, remains in those component payloads as specified in
-{{ISOIEC23090-29}}.
+or VVC parameter sets) is not part of the VPS.  It is carried in the
+decoder configuration record that the video track references with
+`initRef`.  Basemesh and displacement configuration is carried in the
+records listed in {{tbl-init}}; payload syntax for those components
+is specified in {{ISOIEC23090-29}}.
 
 ### Attribute Types in the VPS
 {: #vps-attribute-types}
 
 An attribute is a property of reconstructed volumetric primitives.
-Examples include texture (color), transparency, reflectance,
-surface normal, timestamps, and material ID ({{RFC10034}},
-Sections 3.2.2 and 7.3).
+Examples include texture (color), material ID, transparency,
+reflectance, surface normal, spherical harmonics, scale, and rotation
+({{ISOIEC23090-5}}, Table 5).
 
 The catalog identifies an AVD track by `v3c.attributeIndex`, which
 copies `vuh_attribute_index` from the V3C unit header.  That index
@@ -634,7 +701,7 @@ identify which attribute a given video component contains, for
 example color ({{RFC10034}}, Section 4.3.1).
 
 ~~~
-VPS (initDataList, via initRef)
+VPS (atlas track initRef)
     |
     |  attribute_index 0 -> texture (color)
     |  attribute_index 1 -> surface normal
@@ -680,7 +747,9 @@ carries.
 {: #join}
 
 Joining a V3C presentation uses the catalog, then initialization
-data, then media, as shown in {{fig-join}}:
+data, then media, as shown in {{fig-join}}.  Fill fetch streams are
+requested with FILL_PARAMETERS ({{I-D.ietf-moq-transport-23}},
+Section 3.4):
 
 ~~~
 Subscriber
@@ -689,11 +758,12 @@ Subscriber
     v
 Catalog
     |
-    | initRef -> initDataList (VPS)
+    | atlas initRef -> V3CDecoderConfigurationRecord (VPS)
+    | other initRef -> component decoder configuration
     v
 V3C initialization
     |
-    | SUBSCRIBE component tracks at latest random-access Group
+    | SUBSCRIBE component tracks at the latest Group
     | (Location Filter + FILL_PARAMETERS)
     v
 Time-aligned Groups
@@ -704,68 +774,80 @@ Decode
 {: #fig-join title="Join sequence for a V3C presentation"}
 
 A subscriber MUST NOT begin decoding V3C component tracks until it
-has obtained the referenced VPS.
+has obtained the VPS and the decoder configuration record of each
+subscribed track.
 
-A publisher MAY also emit an in-band VPS at a random-access Group
-boundary so that a stored Group remains self-contained.  In-band
-refresh does not replace catalog `initRef`.  If the active VPS
-changes, the publisher MUST publish a catalog update with a new
-`initDataList` entry and updated `initRef` values.
+In single-track mode, a V3C unit of type V3C_VPS MAY be included in
+the first Object of a Group so that a stored Group remains
+self-contained.  In multi-track mode, the VPS is carried only in
+initialization data.  If the active VPS changes, the publisher MUST
+publish a catalog update with a new `initDataList` entry and updated
+`initRef` values.
 
 ## Groups and Random Access
 {: #groups}
 
-One MOQT Group corresponds to one V3C composition unit, or to a
-publisher-chosen run of composition units that all start at an IRAP
-on every carried component.  That grouping is the MOQT counterpart
-of treating one temporal instance as one sample in
-{{ISOIEC23090-10}}.  Component tracks that belong to the same
-`renderGroup` and that are intended to reconstruct the same
-volumetric frames MUST use identical MOQT Group IDs for corresponding
-intervals, as required for time-aligned MSF tracks
-({{I-D.ietf-moq-msf}}, Section 4.2).
+One MOQT Group carries a run of one or more consecutive V3C
+composition units that begins with an IRAP composition unit.  Each
+Group is therefore a join point at which a subscriber can start
+decoding, consistent with the MOQT requirement that Groups be
+independently useful ({{I-D.ietf-moq-transport-23}}, Section 2.3)
+and with the MSF requirement that a group of pictures be placed
+within one MOQT Group ({{I-D.ietf-moq-msf}}, Section 4.1).  Within a
+Group, each Object carries the coded V3C unit of one composition
+unit, in decoding order ({{objects-subgroups-datagrams}}).
 
-A group boundary SHOULD coincide with a random-access point for each
-carried component: an IRAP coded atlas access unit for atlas and
-common-atlas data (atlas GIDR, GBLA, or GCRA as specified in
-{{ISOIEC23090-5}}), an IDR or Clean Random Access (CRA) picture, or
-the equivalent for the video codec in use, for video-coded
-components, and the equivalent IRAP of a non-video component as
-specified by that component's coding specification.  A coded V3C
-sequence (CVS) starts with a VPS, or with an out-of-band VPS, and
-its first composition unit is an IRAP composition unit
-({{ISOIEC23090-5}}).  Units with different V3C unit headers MAY be
-decoded in parallel.
+Component tracks that belong to the same `renderGroup` and that
+reconstruct the same volumetric frames MUST use identical MOQT Group
+IDs and identical Object IDs for corresponding composition units.
+This requirement is stricter than the time-alignment guidance in
+{{I-D.ietf-moq-msf}}, Section 4.2, and allows a receiver to associate
+the coded V3C units of one composition unit without parsing the
+payloads.
 
-A Group MUST NOT begin in the middle of a coded V3C unit.  Coded
-units MUST NOT span Groups.
+Every Group MUST begin with an IRAP composition unit: the first
+Object of every carried component is a random access point.  For
+atlas and common-atlas data, that is an IRAP coded atlas access unit
+(an atlas access unit whose ACL NAL units have a NAL_IDR_W_RADL, or NAL_IDR_N_LP, NAL_GIDR_W_RADL, NAL_GBLA_N_LP, NAL_GCRA or NAL_GIDR_N_LP 
+NAL unit type as specified in {{ISOIEC23090-5}}).  For video-coded
+components, it is the IRAP defined by the video codec in use, for
+example an Instantaneous Decoding Refresh (IDR) or Clean Random
+Access (CRA) picture.  For a non-video component, it is the random
+access point defined by that component's coding specification.  A
+coded V3C sequence (CVS) starts with a VPS, which can be provided out
+of band, and its first composition unit is an IRAP composition unit
+({{ISOIEC23090-5}}).
 
-Example of cross-track alignment:
+A coded V3C unit MUST NOT span Groups.
+
+Example of cross-track alignment, with two Groups of two composition
+units each:
 
 ~~~
-Group 100
-    v3c/atlas/0              AD[100]
-    v3c/geometry/0/0         GVD[100]
-    v3c/occupancy/0          OVD[100]
-    v3c/attribute/0/0/0      AVD[100]
+Group 100   (starts with an IRAP composition unit)
+    v3c/atlas/0              Object 0: AD[0]    Object 1: AD[1]
+    v3c/occupancy/0          Object 0: OVD[0]   Object 1: OVD[1]
+    v3c/geometry/0           Object 0: GVD[0]   Object 1: GVD[1]
+    v3c/attribute/0/0/0      Object 0: AVD[0]   Object 1: AVD[1]
 
-Group 101
-    v3c/atlas/0              AD[101]
-    v3c/geometry/0/0         GVD[101]
-    v3c/occupancy/0          OVD[101]
-    v3c/attribute/0/0/0      AVD[101]
+Group 101   (starts with an IRAP composition unit)
+    v3c/atlas/0              Object 0: AD[2]    Object 1: AD[3]
+    v3c/occupancy/0          Object 0: OVD[2]   Object 1: OVD[3]
+    v3c/geometry/0           Object 0: GVD[2]   Object 1: GVD[3]
+    v3c/attribute/0/0/0      Object 0: AVD[2]   Object 1: AVD[3]
 ~~~
-{: #fig-group-align title="Equal Group IDs align V3C components in time"}
+{: #fig-group-align title="Equal Group and Object IDs align V3C components in time"}
 
 ## Objects, Subgroups, and Datagrams
 {: #objects-subgroups-datagrams}
 
-A MOQT Object carries one coded V3C unit for the track's component
-and the Group's temporal interval.  For a video-coded component, that
-is typically one coded video access unit.  For atlas or common-atlas
-data, that is typically one coded atlas access unit, which may
-contain one or more atlas NAL units.  For basemesh or displacement
-data, that is typically one coded access unit of that component.
+A MOQT Object carries one coded V3C unit: the coded data of the
+track's component for one V3C composition unit.  Object IDs within a
+Group follow the decoding order of the composition units.  For a
+video-coded component, the Object is one coded video access unit.
+For atlas or common-atlas data, it is one coded atlas access unit,
+which contains zero or more atlas NAL units.  For basemesh or
+displacement data, it is one coded access unit of that component.
 
 NAL units are an underlying codec structure.  They remain inside the
 object payload.  Publishers SHOULD NOT place each NAL unit in its
@@ -773,13 +855,13 @@ own MOQT Object solely to express codec framing.  When datagram
 delivery is used, slice and NAL unit size is constrained at encode
 time ({{datagram-encoding}}).
 
-The object payload is the V3C unit payload for that component.  The
-four-byte V3C unit header is not carried in the object.  Header
+The four-byte V3C unit header is not carried in the object.  Header
 fields needed to identify the component are advertised in the
-catalog `v3c` object ({{v3c-track-identifiers}}).
+catalog `v3c` object ({{v3c-track-identifiers}}).  The payload format
+is specified in {{payload-format}}.
 
 MOQT defines a Delivery Mode for each object
-({{I-D.ietf-moq-transport-22}}, Section 1.3).  The Delivery Mode can
+({{I-D.ietf-moq-transport-23}}, Section 2.1.1).  The Delivery Mode can
 be Subgroup or Datagram, and it can vary among objects in the same
 track.  The Original Publisher establishes the Delivery Mode by how it
 first transmits the object, and in a subscription an object MUST be
@@ -808,9 +890,9 @@ of the Group on subgroup 0.
 
 In multi-track mode, subgroups MUST NOT be used as the primary means
 of separating V3C component types; those are separate tracks
-({{tracks}}).  In the NOT RECOMMENDED
-single-track mode, subgroups MAY separate component types within the
-one track.
+({{tracks}}).  In single-track mode, every Object carries all
+components of one composition unit, so subgroups cannot separate
+component types.
 
 When an object has Delivery Mode Datagram, it is
 conveyed as a single MOQT object datagram.  Such an object is not sent
@@ -824,7 +906,7 @@ A sender using datagram delivery MUST ensure that the complete MOQT
 object header, any object properties, and the object payload fit
 within the maximum datagram size for the session.  If the total object
 size exceeds the maximum datagram size, the object will be dropped
-without explicit notification ({{I-D.ietf-moq-transport-22}},
+without explicit notification ({{I-D.ietf-moq-transport-23}},
 Section 11.2).  That session maximum is bounded by the underlying
 QUIC or WebTransport datagram limit ({{datagram-encoding}}).
 Application-level fragmentation of one coded V3C unit across multiple
@@ -838,6 +920,30 @@ one or more V3C atlas NAL units and fragmentation of a V3C atlas NAL
 unit across RTP packets.  This document does not define RTP
 packetization inside MOQT objects and does not define a V3C
 datagram fragment header.
+
+## Object Payload Format
+{: #payload-format}
+
+{{ISOIEC23090-5}} leaves the demarcation of NAL unit boundaries to
+the carriage format.  This document reuses the length-prefixed sample
+formats of {{ISOIEC23090-10}}, so that an Object payload in multi-track
+mode is identical to the corresponding ISOBMFF sample.  The size of
+the length field is taken from the decoder configuration record that
+the track references with `initRef` ({{initialization}}).
+
+| Component | Object payload | Length field size from |
+| :--- | :--- | :--- |
+| AD, CAD | `V3CAtlasSample` ({{ISOIEC23090-10}}, Clause 7.3.2.3) | `unit_size_precision_bytes_minus1` of `V3CDecoderConfigurationRecord` |
+| AD (atlas tile track) | `V3CAtlasSample`, containing only the ACL NAL units of the carried tiles | as for the atlas track ({{atlas-tiles}}) |
+| OVD, GVD, AVD, PVD | Length-prefixed video sample as specified for the video codec in {{ISOIEC14496-15}} | Decoder configuration record of the video codec, for example `lengthSizeMinusOne` of `HEVCDecoderConfigurationRecord` |
+| BMD | `BaseMeshSample` ({{ISOIEC23090-10}}, Clause 7.6.3) | `unit_size_precision_bytes_minus1` of `BaseMeshDecoderConfigurationRecord` |
+| ADD | `ACDisplacementSample` ({{ISOIEC23090-10}}, Clause 7.6.3) | `unit_size_precision_bytes_minus1` of `ACDisplacementDecoderConfigurationRecord` |
+{: #tbl-payload title="Object payload format per component"}
+
+An atlas Object MAY have a zero-length payload; as in
+{{ISOIEC23090-10}}, such an Object documents the timing of a
+composition unit for which no atlas NAL unit is present.  Video,
+basemesh, and displacement payloads do not use start codes.
 
 ## Datagram Delivery Guidelines for V3C
 {: #datagram-guidelines}
@@ -868,7 +974,7 @@ timeouts consistent with the media timeline.  In MOQT,
 objects with Delivery Mode Datagram,
 `SUBGROUP_DELIVERY_TIMEOUT` acts the same way as
 `OBJECT_DELIVERY_TIMEOUT`; if both are non-zero, the smaller value is
-used ({{I-D.ietf-moq-transport-22}}, Section 5.2).  This behavior allows
+used ({{I-D.ietf-moq-transport-23}}, Section 5.2).  This behavior allows
 obsolete V3C objects to be discarded instead of increasing latency.
 
 Datagram objects remain schedulable MOQT objects and therefore
@@ -915,7 +1021,7 @@ MOQT session, which is itself limited by the underlying transport:
 Each MOQT session along the path between the original publisher and
 the end subscriber can have a different maximum datagram size.
 Relays can also add Object Properties, which increase the encoded
-object ({{I-D.ietf-moq-transport-22}}, Section 11.2).  A publisher
+object ({{I-D.ietf-moq-transport-23}}, Section 11.2).  A publisher
 SHOULD treat the local session maximum as an upper bound and leave
 headroom for the OBJECT_DATAGRAM header, object properties, QUIC or
 HTTP Datagram framing, and downstream sessions.
@@ -944,21 +1050,42 @@ publisher MUST use subgroup stream delivery for that object
 fragmentation of a NAL unit or coded V3C unit across MOQT datagrams.
 {{datagram-options}} lists alternatives to that rule.
 
-# V3C Delivery Manifest
+# V3C Packaging
 {: #packaging}
 
-This document defines the V3C delivery manifest format for carrying coded V3C units in
-MOQT objects using MSF.  When a track uses the new V3C packaging, the catalog
-`packaging` attribute ({{I-D.ietf-moq-msf}}, Section 5.2.4) MUST be
-present and MUST be populated with the value `v3c` as defined in
-{{v3c-packaging-type}}.
+This document defines the V3C packaging for carrying coded V3C units
+in MOQT Objects using MSF.  When a track uses V3C packaging, the
+catalog `packaging` attribute ({{I-D.ietf-moq-msf}}, Section 5.2.4)
+MUST be present and MUST have the value `v3c`
+({{v3c-packaging-type}}).
 
-Object payloads are the coded V3C unit bytes specified in
-{{objects-subgroups-datagrams}}. The payload is not a LOC sample and does not include a LOC header.  V3C
-identifiers used for track selection are signalled through the track-level catalog fields "v3c" defined in
-({{v3c-track-identifiers}}). Such information MUST not be carried in MOQT Object Properties.  
-MOQT Object Properties remain limited to information relays need for distribution
-({{I-D.ietf-moq-transport-22}}, Section 11.1.2).
+Object payloads are the coded V3C units specified in
+{{payload-format}}.  The payload is not a LOC sample and does not
+include a LOC header.  V3C identifiers used for track selection are
+signaled in the track-level catalog object `v3c`
+({{v3c-track-identifiers}}) and MUST NOT be carried in MOQT Object
+Properties.  MOQT Object Properties remain limited to information
+relevant to Object distribution ({{I-D.ietf-moq-transport-23}},
+Section 11.1.2).
+
+V3C-packaged tracks MAY carry the following properties defined by
+{{I-D.ietf-moq-loc}}:
+
+TIMESCALE (0x08):
+: The number of TIMESTAMP units per second, for example 1000 or 90000
+  ({{I-D.ietf-moq-loc}}, Section 2.3.1.2).  When used, it SHOULD be
+  sent as a Track Property and SHOULD equal the catalog `timescale`
+  value ({{I-D.ietf-moq-msf}}, Section 5.2.21).
+
+TIMESTAMP (0x10):
+: The presentation timestamp of the V3C composition unit whose coded
+  V3C unit the Object carries, in TIMESCALE units
+  ({{I-D.ietf-moq-loc}}, Section 2.3.1.1).  Corresponding Objects of
+  time-aligned tracks carry the same value.
+
+These properties allow relays and subscribers to synchronize V3C
+tracks with other media and to manage playout buffers without parsing
+atlas or video payloads.
 
 # Catalog Signaling for V3C
 {: #catalog}
@@ -966,13 +1093,11 @@ MOQT Object Properties remain limited to information relays need for distributio
 Publishers advertise available tracks using the MSF catalog
 {{I-D.ietf-moq-msf}}.  V3C publishers MUST include sufficient
 information for subscribers to (1) discover all required component
-tracks, (2) obtain the VPS via `initRef`, (3) determine dependencies
+tracks, (2) obtain the VPS and the decoder configuration of each
+track via `initRef`, (3) determine dependencies
 between tracks, and (4) select compatible alternatives.
 
-A subscriber MAY use SUBSCRIBE_TRACKS together with catalog metadata
-and Track Property filters to obtain the V3C tracks it needs from a
-namespace, then refine the resulting subscriptions with
-REQUEST_UPDATE, if necessary.
+A subscriber uses catalog metadata to identify the V3C tracks it needs. It can subscribe to those tracks individually using SUBSCRIBE, or use SUBSCRIBE_TRACKS to request tracks within a namespace, optionally restricted by applicable MOQT Track Property filters. The subscriber can subsequently modify subscription parameters using REQUEST_UPDATE.
 
 ## V3C packaging type
 {: #v3c-packaging-type}
@@ -1009,7 +1134,13 @@ the packed-video header carries `vuh_packed_map_index` (8 bits) and
 9 reserved bits rather than 17 reserved bits.  A subscriber uses
 these identifiers to select tracks before any media object arrives.
 
-`component` is a string and is mandatory.  `atlasId`, `mapIndex`,
+`component` is a string and `unitType` is a number.  In multi-track
+mode, at least one of `component` or `unitType` MUST be present.
+`unitType` copies the 5-bit `vuh_unit_type` value from the V3C unit
+header as specified in {{ISOIEC23090-5}}, Table 3.  `unitType` MUST
+NOT be 0 (V3C_VPS) or a reserved value.  When both `component` and
+`unitType` are present, they MUST identify the same unit type in
+{{tbl-v3c-component}}.  `atlasId`, `mapIndex`,
 `packedMapIndex`, `attributeIndex`, `attributePartitionIndex`,
 `parameterSetId`, `auxiliaryVideo`, and `tileId` are numbers.
 Presence follows the V3C unit header except as noted below.
@@ -1026,9 +1157,11 @@ Presence follows the V3C unit header except as noted below.
   copies `vuh_auxiliary_video_flag`.  A value of 0 MAY be omitted;
   receivers infer 0 when the field is absent ({{auxiliary}}).
 * `parameterSetId` is optional.
-* `tileId` is omitted unless the track carries a single atlas tile
-  ({{atlas-tiles}}).  It identifies the atlas carried by the track and 
-  is not derived from V3C unit-header field.
+* `tileId` is omitted unless the track is an atlas tile track
+  ({{atlas-tiles}}).  It copies the atlas tile identifier
+  (`afti_tile_id` in {{ISOIEC23090-5}}) of the tile carried by the
+  track.  It is not a V3C unit header field.
+  <!-- TODO: ISO/IEC 23090-10 tile tracks and RFC 10034 sprop-v3c-tile-id allow several tiles per track; consider a tileIds array. -->
 
 `attributeIndex` identifies which AVD component a track carries.
 The attribute type associated with that index is in the VPS
@@ -1036,6 +1169,7 @@ The attribute type associated with that index is in the VPS
 
 | Name | V3C syntax |
 | :--- | :--- |
+| unitType | vuh_unit_type (5-bit value) |
 | component | vuh_unit_type |
 | atlasId | vuh_atlas_id |
 | mapIndex | vuh_map_index |
@@ -1044,21 +1178,21 @@ The attribute type associated with that index is in the VPS
 | attributePartitionIndex | vuh_attribute_partition_index |
 | auxiliaryVideo | vuh_auxiliary_video_flag |
 | parameterSetId | vuh_v3c_parameter_set_id |
-| tileId | atlas tile identifier (not a unit-header field) |
+| tileId | afti_tile_id (not a unit header field) |
 {: #tbl-v3c-fields title="Fields of the catalog v3c object"}
 
 Allowed `component` values are:
 
-| Value | V3C unit type | Identifier |
-| :--- | :--- | :--- |
-| atlas | Atlas data | V3C_AD |
-| occupancy | Occupancy video data | V3C_OVD |
-| geometry | Geometry video data | V3C_GVD |
-| attribute | Attribute video data | V3C_AVD |
-| packed | Packed video data | V3C_PVD |
-| common-atlas | Common atlas data | V3C_CAD |
-| basemesh | Basemesh data | V3C_BMD |
-| displacement | Arithmetic-coded displacement data | V3C_ADD |
+| unitType | Value | V3C unit type | Identifier |
+| :--- | :--- | :--- | :--- |
+| 1 | atlas | Atlas data | V3C_AD |
+| 2 | occupancy | Occupancy video data | V3C_OVD |
+| 3 | geometry | Geometry video data | V3C_GVD |
+| 4 | attribute | Attribute video data | V3C_AVD |
+| 5 | packed | Packed video data | V3C_PVD |
+| 6 | common-atlas | Common atlas data | V3C_CAD |
+| 7 | basemesh | Basemesh data | V3C_BMD |
+| 8 | displacement | Arithmetic-coded displacement data | V3C_ADD |
 {: #tbl-v3c-component title="Allowed v3c.component values"}
 
 CAD payload syntax is specified in {{ISOIEC23090-12}}.  Basemesh and
@@ -1072,11 +1206,32 @@ table.
 Unknown `v3c` fields MUST be ignored, consistent with MSF catalog
 parsing rules.  Unknown `component` values MUST be ignored.
 
-MSF `codec` ({{I-D.ietf-moq-msf}}, Section 5.2.18) identifies the
-video codec used by OVD, GVD, AVD, or PVD tracks.  Atlas, common
-atlas, basemesh, and displacement tracks have no WebCodecs codec
-registration; those tracks omit `codec`.  The catalog `codec` value
-is not `v3c`.
+For tracks with `packaging` equal to `v3c`, the MSF `codec` field
+({{I-D.ietf-moq-msf}}, Section 5.2.18) carries a value of the
+`codecs` parameter as used for the corresponding ISOBMFF track in
+{{ISOIEC23090-10}}, rather than a WebCodecs codec string.  The MSF
+requirement to use the WebCodecs codec registry applies only to LOC
+packaging.  The `codec` value is never `v3c`.
+
+* Atlas tracks use a V3C sample entry type followed by the profile,
+  tier, and level elements specified in {{ISOIEC23090-10}}, Annex C,
+  for example `v3c1.L90.4.0.1`.  The sample entry type also indicates
+  the `array_completeness` of atlas parameter sets in the
+  `V3CDecoderConfigurationRecord`: `v3c1` when all atlas parameter
+  sets are in the record, and `v3cg` otherwise.  Atlas tile tracks use
+  `v3t1` ({{ISOIEC23090-10}}, Clause 7.3.2.2).
+* Video component tracks use the restricted video sample entry
+  `resv`, the V3C video component scheme `vvvc`, and the original
+  sample entry type of the video codec, for example `resv.vvvc.hvc1`
+  ({{ISOIEC23090-10}}, Clause 7.3.3 and Annex D).  The original
+  sample entry type identifies the decoder configuration record that
+  the track references with `initRef`.
+* Basemesh tracks use `bmc1` or `bmcg`, and arithmetic-coded
+  displacement tracks use `acd1` or `acdg` ({{ISOIEC23090-10}},
+  Clause 7.6.3).
+  <!-- TODO: align basemesh and displacement codec values with a codecs parameter definition if ISO/IEC 23090-10 Annex C adds one. -->
+* Single-track mode uses `v3e1` or `v3eg` for V-PCC, or `vdm1` or
+  `vdmg` for V-DMC ({{ISOIEC23090-10}}, Clauses 7.4.1 and 7.6.2).
 
 ## Track Roles
 {: #track-roles}
@@ -1086,7 +1241,7 @@ carried component.  {{I-D.ietf-moq-msf}} defines reserved roles such
 as `video` and `audio`, and permits custom roles that do not collide
 with those names.  This document defines the following role strings:
 
-`v3c-atlas`, `v3c-occupancy`, `v3c-geometry`, `v3c-attribute`,
+`v3c-atlas`, `v3c-atlas-tile`, `v3c-occupancy`, `v3c-geometry`, `v3c-attribute`,
 `v3c-packed`, `v3c-common-atlas`, `v3c-basemesh`, and
 `v3c-displacement`.
 
@@ -1121,11 +1276,12 @@ their atlas track, not the CAD track, in `depends`.
 
 Tracks that cannot be decoded or reconstructed without another track
 MUST list that track in `depends` ({{I-D.ietf-moq-msf}},
-Section 5.2.14).  Video-coded V3C component tracks, and basemesh and
-displacement tracks, SHOULD list the corresponding atlas track as a
-dependency.  When packed video is the only video component, packed
-tracks SHOULD list the corresponding atlas track as a dependency.
-The VPS is referenced with `initRef`, not `depends`.
+Section 5.2.14).  In particular, every video-coded V3C component
+track, packed video track, basemesh track, displacement track, and
+atlas tile track MUST list the corresponding atlas track.
+The VPS is reached through the atlas track: the atlas track
+references it with `initRef`, and other component tracks list the
+atlas track in `depends`.
 
 A receiver that subscribes to geometry, packed video, or basemesh
 without the dependent atlas track, or without the referenced VPS,
@@ -1149,23 +1305,58 @@ combine, for example, high-bitrate geometry with low-bitrate
 attributes.  When selecting alternatives, the subscriber MUST also
 select a compatible atlas track and VPS.
 
-## Catalog Examples
+{{ISOIEC23090-29}} encodes V-DMC displacement either as geometry
+video or as arithmetic-coded displacement.  Those forms are mutually
+exclusive for one atlas in the VPS.  When a publisher offers both
+forms, the geometry track (V3C_GVD, role `v3c-geometry`) and the
+arithmetic-coded displacement track (V3C_ADD, role
+`v3c-displacement`) MUST share one `altGroup` and MUST be
+time-aligned.  Each track MUST set `initRef` to initialization data
+whose VPS indicates that displacement form.  Each track MUST list,
+in `depends`, the atlas track and basemesh track that match that
+form and that VPS.  A subscriber MUST select at most one of the two
+tracks and MUST select those dependent tracks and that
+initialization data.  {{catalog-vdmc}} shows the arithmetic-coded
+displacement form.
 
-The following examples are non-normative but informative.
-For example, the timeline follows a 50-frame presentation 
-at 25 frames per second. These examples show two valid track 
-layouts. The active VPS determines which component tracks 
-are present.  The examples use the recommended naming patterns in
-{{fig-track-names}}, but MOQT treats track names as opaque identifiers
-and does not infer component semantics from them.  Every media track shares
-`renderGroup` 1, `initRef` `"v3c-init-0"`, `isLive` false, and the
-same media timeline.  Video-coded tracks use `codec`
-`"hev1.1.6.L93.B0"`.  The `initDataList` `data` value is illustrative
-Base64 and is not a working VPS.  Attribute types are recovered from
-that VPS ({{vps-attribute-types}}), not from the track name. 
+## Catalog Examples
+{: #catalog-examples}
+
+The following examples are informative.  Each describes a 50-frame
+presentation at 25 frames per second.  The active VPS determines
+which component tracks are present.  The examples use the
+recommended naming patterns in {{fig-track-names}}, but MOQT treats
+track names as opaque identifiers and does not infer component
+semantics from them.  Within one example, every media track shares
+`renderGroup` 1, `isLive` false, the same namespace, and the same
+media timeline.
+
+The atlas track references the `V3CDecoderConfigurationRecord` entry
+`atlas-init`, and the video component tracks reference the
+`HEVCDecoderConfigurationRecord` entry `hevc-init` ({{initialization}}).
+For brevity, all video component tracks in an example share one
+video decoder configuration; a publisher whose components use
+different video configurations provides one entry per configuration.
+The `data` values are placeholders, not working configuration
+records.  Attribute types are recovered from the VPS
+({{vps-attribute-types}}), not from the track name.
+
+The atlas track `codec` value `v3c1` indicates that all atlas
+parameter sets are in the `V3CDecoderConfigurationRecord`; the
+profile, tier, and level elements of the codecs value
+({{ISOIEC23090-10}}, Annex C) are omitted for brevity.  Video
+component tracks use `codec` `"resv.vvvc.hvc1"`:
+
+| Element | Meaning |
+| --- | --- |
+| `resv` | Restricted video sample entry ({{ISOIEC14496-12}}).  The samples are not plain 2D video. |
+| `vvvc` | Restriction scheme for a V3C video component ({{ISOIEC23090-10}}): occupancy, geometry, attribute, or packed video. |
+| `hvc1` | The video is HEVC/H.265 with parameter sets carried in the `HEVCDecoderConfigurationRecord` ({{ISOIEC14496-15}}), here referenced by `initRef`. |
+{: #tbl-example-codec title="Elements of the example video codec value"}
+
 MSF expresses both `trackDuration` and the template's
-`deltaMediaTime` in milliseconds ({{I-D.ietf-moq-msf}}).  For these
-examples:
+`deltaMediaTime` in milliseconds ({{I-D.ietf-moq-msf}}, Section
+7.4.1).  For these examples:
 
 ~~~
 frame duration = 1000 / 25 = 40 ms
@@ -1182,42 +1373,47 @@ mediaTime[n] = n * 40 ms
 location[n] = [1, n]
 ~~~
 
-The first frame starts at 0 ms at Group 1, Object 0.  The last frame
-starts at 1960 ms at Group 1, Object 49 and ends at the 2000 ms track
-duration.  A FETCH covering all 50 Objects consequently
-uses a Location Filter with start Location `[1, 0]` and inclusive end
-Location `[1, 49]`, as specified by {{I-D.ietf-moq-transport-22}}.  The `timescale` value does
-not scale these template values; the template interval is explicitly
-in milliseconds.
+In these examples, the whole presentation is one run of 50
+composition units that starts with an IRAP composition unit, so it is
+carried in a single Group 1 ({{groups}}).  The first frame starts at
+0 ms at Group 1, Object 0.  The last frame starts at 1960 ms at
+Group 1, Object 49 and ends at the 2000 ms track duration.  A FETCH
+covering all 50 Objects uses a start Location `[1, 0]` and an
+inclusive end Location `[1, 49]` ({{I-D.ietf-moq-transport-23}}).
+The `timescale` value does not scale these template values; the
+template interval is explicitly in milliseconds.
 
-The examples illustrate Gaussian Splatting (GS) content conforming to the
-V-PCC GS or V-PCC GS Still toolset profile component of
-{{ISOIEC23090-5}}.  Annex A identifies those profile components and
+The examples in {{catalog-pack-attr}} and {{catalog-pack-none}}
+illustrate Gaussian splatting content conforming to the V-PCC GS or
+V-PCC GS Still toolset profile component of {{ISOIEC23090-5}}.
+Annex A of {{ISOIEC23090-5}} identifies those profile components and
 their profile, tier, and level signaling; Annex H specifies their
-V-PCC restrictions and reconstruction processes.  The MSF and MOQT
-mapping in this document is not limited to those profiles.  The
-packed and unpacked component organizations below are determined by
-the component-presence flags and packed-video extension in the active
-VPS, not by the catalog example itself.
+V-PCC restrictions and reconstruction processes.  The mapping in
+this document is not limited to those profiles.  The packed and
+unpacked component organizations are determined by the
+component-presence flags and packed-video extension in the active
+VPS, not by the catalog.
 
 A subscriber MAY request a subset of the advertised tracks.  A track
 listed in `depends` that is not requested cannot be used to
 reconstruct the dependent component ({{dependencies}}).  Alternate
-encodings of one component share `altGroup` and are not shown here
-({{alternate-groups}}).  A mesh presentation MAY advertise `basemesh`
-and `displacement` tracks instead of geometry video.
+encodings of one component share `altGroup` and are not shown
+({{alternate-groups}}). A mesh presentation MAY advertise a
+basemesh track together with either a geometry track, when that
+track carries video-coded displacement, or an arithmetic-coded
+displacement track.
 
-### Packed Attributes
+### Packed Video Component Mode
 {: #catalog-pack-attr}
 
-{{fig-v3c-catalog-pack-attr}} is a presentation in which attribute
+{{fig-v3c-catalog-pack-attr}} shows a presentation in which attribute
 data is carried in packed video and geometry remains its own
 sub-bitstream.  The active VPS has geometry video and packed video
 present.  It does not have separate occupancy or attribute video
 sub-bitstreams, so those tracks are omitted ({{component-presence}}).
-The packed track lists the atlas track in `depends`.  Regions inside
-the packed frame, including which attributes they carry, are recovered
-from the VPS packed-video extension specified by
+The geometry and packed tracks list the atlas track in `depends`.
+Regions inside the packed frame, including which attributes they
+carry, are recovered from the VPS packed-video extension specified by
 {{ISOIEC23090-5}}.
 
 ~~~
@@ -1225,54 +1421,63 @@ from the VPS packed-video extension specified by
   "version": "draft-01",
   "tracks": [
     {
+      "namespace": "packed",
       "name": "v3c/atlas/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-atlas",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "atlas-init",
+      "codec": "v3c1",
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "atlas",
+        "unitType": 1,
         "atlasId": 0
       }
     },
     {
+      "namespace": "packed",
       "name": "v3c/geometry/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-geometry",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 4000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "geometry",
+        "unitType": 3,
         "atlasId": 0
       }
     },
     {
+      "namespace": "packed",
       "name": "v3c/packed/0/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-packed",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 8000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "packed",
+        "unitType": 5,
         "atlasId": 0,
         "packedMapIndex": 0
       }
@@ -1280,194 +1485,223 @@ from the VPS packed-video extension specified by
   ],
   "initDataList": [
     {
-      "id": "v3c-init-0",
+      "id": "atlas-init",
       "type": "inline",
-      "data": "AQD/AAAP/zwAAAAAADwIAQ5BwAAOADjgQAADkA=="
+      "data": "PLACEHOLDER-V3CDecoderConfigurationRecord"
+    },
+    {
+      "id": "hevc-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-HEVCDecoderConfigurationRecord"
     }
   ]
 }
 ~~~
 {: #fig-v3c-catalog-pack-attr title="Catalog when attributes are packed"}
 
-### Unpacked Components
+### Unpacked Component Mode with Multiple Attributes
 {: #catalog-pack-none}
 
-{{fig-v3c-catalog-pack-none}} is the same presentation with packed
+{{fig-v3c-catalog-pack-none}} shows the same content with packed
 video absent (`vps_packed_video_present_flag` equal to 0) and every
-remaining video component carried on its own track.  The active VPS
-has occupancy video, geometry video, and attribute video present.
-There is no packed track.  Each attribute index is one AVD track.
-For this example the illustrative VPS maps the indices as follows:
+video component carried on its own track.  The active VPS has
+occupancy video, geometry video, and attribute video present.  Each
+attribute index is one AVD track.  For this example, the VPS maps the
+attribute indices as follows:
 
 * 0: texture (color)
-* 1: transparency (opacity in Gaussian-splat terminology)
+* 1: transparency (opacity in Gaussian splat terminology)
 * 2: scale
 * 3: rotation
 * 4: spherical harmonics
 
-These are track-local attribute indices, not the numeric
-`ai_attribute_type_id` values.  The corresponding
-`ATTR_TEXTURE`, `ATTR_TRANSPARENCY`, `ATTR_SCALE`, `ATTR_ROTATION`,
-and `ATTR_SPHERICAL_HARMONICS` types and the equivalence of
-transparency and Gaussian-splat opacity are defined by
-{{ISOIEC23090-5}}.
+These are attribute indices, not the numeric `ai_attribute_type_id`
+values.  The corresponding `ATTR_TEXTURE`, `ATTR_TRANSPARENCY`,
+`ATTR_SCALE`, `ATTR_ROTATION`, and `ATTR_SPHERICAL_HARMONICS` types,
+and the equivalence of transparency and Gaussian splat opacity, are
+defined by {{ISOIEC23090-5}}.
 
 Each video track lists `v3c/atlas/0` in `depends`.  `mapIndex` is
-omitted because each component uses a single map stream
-({{map-streams}}).  `attributePartitionIndex` is 0 because none of
-these attributes is split across partitions.
+omitted because the VPS signals a single map
+(`vps_map_count_minus1` equal to 0; {{map-streams}}).
+`attributePartitionIndex` is 0 because none of these attributes is
+split across partitions.
 
 ~~~
 {
   "version": "draft-01",
   "tracks": [
     {
+      "namespace": "unpacked",
       "name": "v3c/atlas/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-atlas",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "atlas-init",
+      "codec": "v3c1",
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "atlas",
+        "unitType": 1,
         "atlasId": 0
       }
     },
     {
+      "namespace": "unpacked",
       "name": "v3c/occupancy/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-occupancy",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 500000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "occupancy",
+        "unitType": 2,
         "atlasId": 0
       }
     },
     {
+      "namespace": "unpacked",
       "name": "v3c/geometry/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-geometry",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 4000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "geometry",
+        "unitType": 3,
         "atlasId": 0
       }
     },
     {
+      "namespace": "unpacked",
       "name": "v3c/attribute/0/0/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-attribute",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 3000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "attribute",
+        "unitType": 4,
         "atlasId": 0,
         "attributeIndex": 0,
         "attributePartitionIndex": 0
       }
     },
     {
+      "namespace": "unpacked",
       "name": "v3c/attribute/0/1/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-attribute",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 1000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "attribute",
+        "unitType": 4,
         "atlasId": 0,
         "attributeIndex": 1,
         "attributePartitionIndex": 0
       }
     },
     {
+      "namespace": "unpacked",
       "name": "v3c/attribute/0/2/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-attribute",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 1000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "attribute",
+        "unitType": 4,
         "atlasId": 0,
         "attributeIndex": 2,
         "attributePartitionIndex": 0
       }
     },
     {
+      "namespace": "unpacked",
       "name": "v3c/attribute/0/3/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-attribute",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 1000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "attribute",
+        "unitType": 4,
         "atlasId": 0,
         "attributeIndex": 3,
         "attributePartitionIndex": 0
       }
     },
     {
+      "namespace": "unpacked",
       "name": "v3c/attribute/0/4/0",
       "packaging": "v3c",
       "isLive": false,
       "role": "v3c-attribute",
       "renderGroup": 1,
-      "initRef": "v3c-init-0",
+      "initRef": "hevc-init",
       "depends": ["v3c/atlas/0"],
-      "codec": "hev1.1.6.L93.B0",
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 2000000,
       "framerate": 25,
       "timescale": 1000,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
         "component": "attribute",
+        "unitType": 4,
         "atlasId": 0,
         "attributeIndex": 4,
         "attributePartitionIndex": 0
@@ -1476,20 +1710,354 @@ these attributes is split across partitions.
   ],
   "initDataList": [
     {
-      "id": "v3c-init-0",
+      "id": "atlas-init",
       "type": "inline",
-      "data": "AQD/AAAP/zwAAAAAADwIAQ5BwAAOADjgQAADkA=="
+      "data": "PLACEHOLDER-V3CDecoderConfigurationRecord"
+    },
+    {
+      "id": "hevc-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-HEVCDecoderConfigurationRecord"
     }
   ]
 }
 ~~~
 {: #fig-v3c-catalog-pack-none title="Catalog when every component is its own track"}
 
+### Video-based Dynamic Mesh Coding (V-DMC)
+{: #catalog-vdmc}
+
+{{fig-v3c-catalog-vdmc}} shows a V-DMC presentation
+({{ISOIEC23090-29}}) following the multi-track layout of
+{{ISOIEC23090-10}}, Clause 7.6.3.  The presentation consists of an
+atlas track, a basemesh track, an arithmetic-coded displacement
+track, and a texture attribute video track.  The basemesh and
+displacement tracks reference their own decoder configuration records
+(`BaseMeshDecoderConfigurationRecord` and
+`ACDisplacementDecoderConfigurationRecord`), and their `codec` values
+are the corresponding sample entry types `bmc1` and `acd1`
+({{v3c-track-identifiers}}).  The VPS in `atlas-init` carries a V-DMC
+VPS extension and a `ptl_profile_toolset_idc` in the range reserved
+for V-DMC.  When displacement is coded with a video codec instead,
+{{ISOIEC23090-10}} carries it in a video component track with
+`vuh_unit_type` equal to V3C_GVD.
+
+~~~
+{
+  "version": "draft-01",
+  "tracks": [
+    {
+      "namespace": "vdmc",
+      "name": "v3c/atlas/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-atlas",
+      "renderGroup": 1,
+      "initRef": "atlas-init",
+      "codec": "v3c1",
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "atlas",
+        "unitType": 1,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "vdmc",
+      "name": "v3c/basemesh/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-basemesh",
+      "renderGroup": 1,
+      "initRef": "basemesh-init",
+      "depends": ["v3c/atlas/0"],
+      "codec": "bmc1",
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "basemesh",
+        "unitType": 7,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "vdmc",
+      "name": "v3c/displacement/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-displacement",
+      "renderGroup": 1,
+      "initRef": "displacement-init",
+      "depends": ["v3c/atlas/0", "v3c/basemesh/0"],
+      "codec": "acd1",
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "displacement",
+        "unitType": 8,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "vdmc",
+      "name": "v3c/attribute/0/0/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-attribute",
+      "renderGroup": 1,
+      "initRef": "hevc-init",
+      "depends": ["v3c/atlas/0"],
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 3000000,
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "attribute",
+        "unitType": 4,
+        "atlasId": 0,
+        "attributeIndex": 0,
+        "attributePartitionIndex": 0
+      }
+    }
+  ],
+  "initDataList": [
+    {
+      "id": "atlas-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-V3CDecoderConfigurationRecord"
+    },
+    {
+      "id": "basemesh-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-BaseMeshDecoderConfigurationRecord"
+    },
+    {
+      "id": "displacement-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-ACDisplacementDecoderConfigurationRecord"
+    },
+    {
+      "id": "hevc-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-HEVCDecoderConfigurationRecord"
+    }
+  ]
+}
+~~~
+{: #fig-v3c-catalog-vdmc title="Catalog for a V-DMC presentation"}
+
+The displacement track lists the basemesh track in `depends` because
+displacements are applied to the decoded basemesh during V-DMC
+reconstruction ({{ISOIEC23090-29}}).
+<!-- TODO: confirm with ISO/IEC 23090-29 whether the displacement sub-bitstream can be decoded without the basemesh sub-bitstream; if so, drop that dependency. -->
+
+### Spatial Subdivision with Atlas Tile Tracks
+{: #catalog-subdivision}
+
+{{fig-v3c-catalog-tiles}} follows the layout of the multi-track
+example with atlas tile tracks in {{ISOIEC23090-10}}, Annex D.4,
+without an occupancy component.  The atlas frame is partitioned into
+two atlas tiles with tile identifiers 1 and 2.  One atlas track
+carries the atlas parameter sets and the non-ACL NAL units, and one
+atlas tile track per tile carries the ACL NAL units of that tile
+({{atlas-tiles}}).  For each tile, a geometry track and an attribute
+track carry the video components of the corresponding region.  The
+tile tracks use the `codec` value `v3t1` and reference the same
+`initDataList` entry as the atlas track.
+
+The two geometry tracks carry the same V3C unit header fields; they
+are distinguished by the atlas tile track that each lists in
+`depends`.  The same applies to the two attribute tracks.  The video
+track names extend the recommended patterns with a `/tile/<tileId>`
+suffix.  A subscriber interested in only one spatial region
+subscribes to the atlas track, one atlas tile track, and the video
+tracks that depend on that tile track.
+<!-- TODO: decide whether v3c.tileId is also permitted on video component tracks to identify the tile region they carry. -->
+
+~~~
+{
+  "version": "draft-01",
+  "tracks": [
+    {
+      "namespace": "tiled",
+      "name": "v3c/atlas/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-atlas",
+      "renderGroup": 1,
+      "initRef": "atlas-init",
+      "codec": "v3c1",
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "atlas",
+        "unitType": 1,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "tiled",
+      "name": "v3c/atlas/0/tile/1",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-atlas",
+      "renderGroup": 1,
+      "initRef": "atlas-init",
+      "depends": ["v3c/atlas/0"],
+      "codec": "v3t1",
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "atlas",
+        "unitType": 1,
+        "atlasId": 0,
+        "tileId": 1
+      }
+    },
+    {
+      "namespace": "tiled",
+      "name": "v3c/atlas/0/tile/2",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-atlas",
+      "renderGroup": 1,
+      "initRef": "atlas-init",
+      "depends": ["v3c/atlas/0"],
+      "codec": "v3t1",
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "atlas",
+        "unitType": 1,
+        "atlasId": 0,
+        "tileId": 2
+      }
+    },
+    {
+      "namespace": "tiled",
+      "name": "v3c/geometry/0/tile/1",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-geometry",
+      "renderGroup": 1,
+      "initRef": "hevc-init",
+      "depends": ["v3c/atlas/0", "v3c/atlas/0/tile/1"],
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 2000000,
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "geometry",
+        "unitType": 3,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "tiled",
+      "name": "v3c/attribute/0/0/0/tile/1",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-attribute",
+      "renderGroup": 1,
+      "initRef": "hevc-init",
+      "depends": ["v3c/atlas/0", "v3c/atlas/0/tile/1"],
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 1500000,
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "attribute",
+        "unitType": 4,
+        "atlasId": 0,
+        "attributeIndex": 0,
+        "attributePartitionIndex": 0
+      }
+    },
+    {
+      "namespace": "tiled",
+      "name": "v3c/geometry/0/tile/2",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-geometry",
+      "renderGroup": 1,
+      "initRef": "hevc-init",
+      "depends": ["v3c/atlas/0", "v3c/atlas/0/tile/2"],
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 2000000,
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "geometry",
+        "unitType": 3,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "tiled",
+      "name": "v3c/attribute/0/0/0/tile/2",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-attribute",
+      "renderGroup": 1,
+      "initRef": "hevc-init",
+      "depends": ["v3c/atlas/0", "v3c/atlas/0/tile/2"],
+      "codec": "resv.vvvc.hvc1",
+      "bitrate": 1500000,
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "component": "attribute",
+        "unitType": 4,
+        "atlasId": 0,
+        "attributeIndex": 0,
+        "attributePartitionIndex": 0
+      }
+    }
+  ],
+  "initDataList": [
+    {
+      "id": "atlas-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-V3CDecoderConfigurationRecord"
+    },
+    {
+      "id": "hevc-init",
+      "type": "inline",
+      "data": "PLACEHOLDER-HEVCDecoderConfigurationRecord"
+    }
+  ]
+}
+~~~
+{: #fig-v3c-catalog-tiles title="Catalog with atlas tile tracks"}
+
 # Prioritization Considerations
 
 MOQT supports prioritization of delivery under congestion through
 subscriber priority and publisher priority
-({{I-D.ietf-moq-transport-22}}, Section 5.1).  Priority values range from 0
+({{I-D.ietf-moq-transport-23}}, Section 5.1).  Priority values range from 0
 to 255, where lower numeric values indicate higher priority.  Publisher
 priority can be provided as a default track property
 (`DEFAULT_PUBLISHER_PRIORITY`) and can also be set per subgroup or
@@ -1499,9 +2067,14 @@ A V3C publisher SHOULD assign higher priority, using lower numeric
 values, to components that are critical for reconstruction, such as
 atlas and base geometry or basemesh.  Enhancement components, such as
 high-resolution attributes or optional packed-video refinements,
-SHOULD be assigned lower priority.  In the NOT RECOMMENDED
-single-track mode, an atlas subgroup SHOULD be prioritized over
-attribute or enhancement subgroups.  In datagram mode,
+SHOULD be assigned lower priority.  When `ptl_priority_order_enable_flag`
+in the VPS is 1, {{ISOIEC23090-5}} defines a priority order among
+video components: geometry, then attribute components in increasing
+attribute index and partition index, then packed video components in
+increasing packed map index.  A publisher SHOULD assign publisher
+priorities to video component tracks that are consistent with that
+order.  Single-track mode does not allow
+per-component prioritization.  In datagram mode,
 reconstruction-critical datagrams SHOULD be prioritized over optional
 enhancement datagrams.
 
@@ -1523,16 +2096,18 @@ codecs.
 This document provides the corresponding functions with MSF catalog
 fields rather than SDP:
 
-* `initRef` / `initDataList` replace `sprop-v3c-parameter-set`;
-  the VPS remains the source of attribute type, presence flags, and
-  PTL, as in SDP;
+* the `V3CDecoderConfigurationRecord` referenced by the atlas track
+  `initRef` replaces `sprop-v3c-parameter-set`, and its setup unit
+  arrays correspond to `sprop-v3c-atlas-data`; the VPS remains the
+  source of attribute type, presence flags, and PTL, as in SDP;
 * the catalog `v3c` object replaces `sprop-v3c-unit-type`,
   `sprop-v3c-atlas-id`, `sprop-v3c-attr-idx`,
   `sprop-v3c-attr-part-idx`, `sprop-v3c-map-idx`,
   `sprop-v3c-aux-video-flag`, and related parameters.  As with
   `sprop-v3c-attr-idx`, `attributeIndex` is an index; the type is in
   the VPS ({{vps-attribute-types}}).  `auxiliaryVideo` replaces
-  `sprop-v3c-aux-video-flag`.  `packedMapIndex` has no SDP
+  `sprop-v3c-aux-video-flag`.  `parameterSetId` replaces
+  `sprop-v3c-vps-id`.  `packedMapIndex` has no SDP
   counterpart in {{RFC10034}} because that RFC's informative unit
   header treated packed-video bits as reserved;
 * `tileId`, when used, replaces `sprop-v3c-tile-id` for an optional
@@ -1552,7 +2127,7 @@ at encode time rather than by fragmenting NAL units across datagrams
 # Security Considerations
 
 This document inherits the security considerations of MOQT
-{{I-D.ietf-moq-transport-22}}, QUIC {{RFC9000}}, and MSF
+{{I-D.ietf-moq-transport-23}}, QUIC {{RFC9000}}, and MSF
 {{I-D.ietf-moq-msf}}.  In particular, publishers and relays must
 consider resource exhaustion attacks caused by large numbers of
 tracks, objects, subgroups, or datagrams, and must validate bounds
@@ -1564,17 +2139,19 @@ payloads remain opaque to relays.  When end-to-end confidentiality
 and integrity of media are required, deployments can use the MSF
 content-protection mechanisms, including MoQ Secure Objects
 {{I-D.ietf-moq-secure-objects}} as referenced by {{I-D.ietf-moq-msf}}.
-The VPS in `initDataList` is
-catalog payload.  An attacker that tampers with the VPS can cause
-decoder misconfiguration or reconstruction failure.  Catalog objects
+The VPS and the component decoder configuration records in
+`initDataList` are catalog payload.  An attacker that tampers with
+them can cause decoder misconfiguration or reconstruction failure.  Catalog objects
 and initialization data MUST be protected with at least the same
 integrity guarantees as the component media they initialize.
 
-A receiver MUST authenticate that catalog `initRef` values, `depends`
-names, and `v3c` identifiers correspond to tracks it intended to
-subscribe to.  Accepting a substituted atlas track or VPS is a
-cross-component integrity failure: geometry might be reconstructed
-against attacker-chosen patch metadata.
+Before decoding, a receiver MUST verify that the catalog is
+consistent: every `depends` entry and `initRef` value resolves to a
+track or `initDataList` entry advertised in the same catalog and
+namespace, and the `v3c` identifiers of each track agree with the
+components that the VPS signals as present.  Accepting a substituted
+atlas track or VPS is a cross-component integrity failure: geometry
+might be reconstructed against attacker-chosen patch metadata.
 
 Datagram delivery can increase the rate of object loss under
 congestion and can cause receivers to observe incomplete sets of V3C
@@ -1590,8 +2167,10 @@ SHOULD bind decoded Groups to the catalog generation that advertised
 their `initRef`.
 
 A downgrade to packaging `loc` on a V3C component track would strip
-V3C identity from the catalog.  Subscribers MUST reject V3C component
-tracks that do not use packaging `v3c`.
+V3C identity from the catalog.  A subscriber MUST NOT decode a track
+as a V3C component unless its `packaging` is `v3c`; this includes
+tracks that carry a V3C role ({{track-roles}}) or a `v3c` object
+with another packaging value.
 
 Relay-visible track and object metadata, including track names,
 priorities, and subscription filters, can
@@ -1625,7 +2204,7 @@ Working Group input is requested.
 
 ## Problem
 
-{{I-D.ietf-moq-transport-22}}, Section 11.2, maps one MOQT object with
+{{I-D.ietf-moq-transport-23}}, Section 11.2, maps one MOQT object with
 Delivery Mode Datagram to one OBJECT_DATAGRAM.  If the
 object header, object properties, and payload exceed the session
 maximum datagram size, the object is dropped without notification.
@@ -1806,7 +2385,7 @@ Pros:
   not datagram what does not fit".
 * Matches MOQT's existing drop-if-too-large rule and the permission
   to mix Subgroup and Datagram in one track
-  ({{I-D.ietf-moq-transport-22}}, Section 11).
+  ({{I-D.ietf-moq-transport-23}}, Section 2.1).
 * Reconstruction-critical data keeps reliable ordered delivery.
 
 Cons:
@@ -1839,7 +2418,7 @@ Path heterogeneity:
 : The original publisher knows only the first hop.  Should a relay
   that cannot forward an OBJECT_DATAGRAM on a smaller downstream
   session drop it (current MOQT), or must the publisher leave
-  headroom?  MOQT version 22 requires an object in a subscription to
+  headroom?  MOQT version 23 requires an object in a subscription to
   be sent according to its Delivery Mode, so a relay cannot rewrite
   Datagram delivery to a subgroup stream.
 
