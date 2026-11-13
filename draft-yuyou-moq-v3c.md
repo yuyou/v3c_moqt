@@ -51,31 +51,15 @@ author:
     email: lauri.ilola@nokia.com
 
 normative:
-  RFC4648:
-  RFC9000:
-  RFC9221:
-  I-D.ietf-moq-transport-23:
-  I-D.ietf-moq-msf:
   I-D.ietf-moq-loc:
-  ISOIEC14496-12:
-    title: "Information technology -- Coding of audio-visual objects -- Part 12: ISO base media file format"
-    author:
-      - org: ISO/IEC
-    seriesinfo:
-      ISO/IEC: 14496-12
+  I-D.ietf-moq-msf:
+  I-D.ietf-moq-transport-23:
   ISOIEC14496-15:
     title: "Information technology -- Coding of audio-visual objects -- Part 15: Carriage of network abstraction layer (NAL) unit structured video in the ISO base media file format"
     author:
       - org: ISO/IEC
     seriesinfo:
       ISO/IEC: 14496-15
-  ISOIEC23090-10:
-    title: "Information technology -- Coded representation of immersive media -- Part 10: Carriage of visual volumetric video-based coding data"
-    author:
-      - org: ISO/IEC
-    date: 2026
-    seriesinfo:
-      ISO/IEC: "23090-10:2026 (DIS)"
   ISOIEC23090-5:
     title: "Information technology -- Coded representation of immersive media -- Part 5: Visual volumetric video-based coding (V3C) and video-based point cloud compression (V-PCC)"
     author:
@@ -84,26 +68,13 @@ normative:
     seriesinfo:
       ISO/IEC: 23090-5:2026
     target: https://www.iso.org/standard/91546.html
-
-informative:
-  RFC10034:
-  I-D.ietf-moq-cmsf:
-  I-D.ietf-webtrans-http3:
-  I-D.ietf-webtrans-overview:
-  I-D.ietf-moq-secure-objects:
-  W3C-WEBCODECS:
-    title: "WebCodecs"
-    author:
-      - org: World Wide Web Consortium
-    target: https://www.w3.org/TR/webcodecs/
-  ISOIEC23090-12:
-    title: "Information technology -- Coded representation of immersive media -- Part 12: MPEG Immersive video (MIV)"
+  ISOIEC23090-10:
+    title: "Information technology -- Coded representation of immersive media -- Part 10: Carriage of visual volumetric video-based coding data"
     author:
       - org: ISO/IEC
-    date: 2025
+    date: 2026
     seriesinfo:
-      ISO/IEC: 23090-12:2025
-    target: https://www.iso.org/standard/87643.html
+      ISO/IEC: "23090-10:2026 (DIS)"
   ISOIEC23090-29:
     title: "Information technology -- Coded representation of immersive media -- Part 29: Video-based dynamic mesh coding (V-DMC)"
     author:
@@ -112,6 +83,35 @@ informative:
     seriesinfo:
       ISO/IEC: 23090-29:2026
     target: https://www.iso.org/standard/85254.html
+  RFC4648:
+  RFC9000:
+  RFC9221:
+
+informative:
+  I-D.ietf-moq-cmsf:
+  I-D.ietf-moq-secure-objects:
+  I-D.ietf-webtrans-http3:
+  I-D.ietf-webtrans-overview:
+  ISOIEC14496-12:
+    title: "Information technology -- Coding of audio-visual objects -- Part 12: ISO base media file format"
+    author:
+      - org: ISO/IEC
+    seriesinfo:
+      ISO/IEC: 14496-12
+  ISOIEC23090-12:
+    title: "Information technology -- Coded representation of immersive media -- Part 12: MPEG Immersive video (MIV)"
+    author:
+      - org: ISO/IEC
+    date: 2025
+    seriesinfo:
+      ISO/IEC: 23090-12:2025
+    target: https://www.iso.org/standard/87643.html
+  RFC10034:
+  W3C-WEBCODECS:
+    title: "WebCodecs"
+    author:
+      - org: World Wide Web Consortium
+    target: https://www.w3.org/TR/webcodecs/
 
 ...
 
@@ -297,6 +297,9 @@ this document states otherwise.  This specification adds:
   ({{vps-attribute-types}});
 * a track-level `v3c` object that copies identifiers from the V3C
   unit header ({{v3c-track-identifiers}});
+* two Object payload framings: native framing using only
+  {{ISOIEC23090-5}} syntax, and ISOBMFF framing using the sample
+  formats of {{ISOIEC23090-10}} ({{payload-format}});
 * a mapping from V3C components, composition units, and coded units
   onto MSF tracks, MOQT Groups, and MOQT Objects ({{mapping}}).
 
@@ -350,8 +353,8 @@ The mapping is:
 
 | V3C | MSF / MOQT |
 | :--- | :--- |
-| VPS | `V3CDecoderConfigurationRecord` in `initDataList`, referenced by the atlas track `initRef` |
-| Component decoder configuration | `initDataList` entry referenced by the component track `initRef` |
+| VPS | `initDataList` entry referenced by the atlas track `initRef`: `v3c_parameter_set()` (native framing) or `V3CDecoderConfigurationRecord` (ISOBMFF framing) |
+| Component decoder configuration | In band (native framing), or `initDataList` entry referenced by the component track `initRef` (ISOBMFF framing) |
 | Each independently consumable component (AD, OVD, GVD, AVD, PVD, CAD, BMD, ADD) | One MSF track |
 | Run of V3C composition units starting at an IRAP composition unit | One MOQT Group, with identical Group IDs across time-aligned tracks |
 | Coded V3C unit (one component, one composition unit) | One MOQT Object |
@@ -366,8 +369,14 @@ The mapping is:
 {: #mapping}
 
 ## Encapsulation Modes
+{: #encapsulation-modes}
 
-This document specifies multi-track encapsulation. 
+An encapsulation mode determines how V3C components are assigned to
+MOQT tracks.  The body of this document specifies multi-track mode.
+Single-track mode, in which all V3C components share one track, is
+NOT RECOMMENDED and is specified in {{single-track}}.  Independently
+of the encapsulation mode, a payload framing determines the byte
+format of an Object payload ({{payload-format}}).
 
 Multi-track mode:
 : Each independently consumable V3C component is carried on its own
@@ -377,28 +386,11 @@ Multi-track mode:
   are separate tracks that share an `altGroup`
   ({{alternate-groups}}).
 
-Single-track mode:
-: All V3C components are carried in one MOQT track.  Each Object
-  carries one complete V3C composition unit in the `V3CBitstreamSample`
-  format ({{ISOIEC23090-10}}, Clause 7.3.1.2): a sequence of V3C units,
-  each preceded by a length field and each including its four-byte V3C
-  unit header.  The size of the length field is given by
-  `unit_size_precision_bytes_minus1` in the
-  `V3CDecoderConfigurationRecord` that the track references with
-  `initRef` ({{initialization}}).  This mode reduces the number of
-  subscriptions, but it prevents per-component subscription,
-  prioritization, and independent adaptive bitrate switching, and
-  therefore is NOT RECOMMENDED.  The catalog `v3c` object of such a
-  track omits all fields except `parameterSetId`
-  ({{v3c-track-identifiers}}).  Carriage of video decoder
-  configuration for this mode is not specified by this document.
-  <!-- TODO: specify video decoder configuration for single-track mode, or remove the mode. -->
-
-In both modes, subscribers MUST have catalog metadata sufficient to
+In either encapsulation mode, subscribers MUST have catalog metadata sufficient to
 identify required dependencies (for example atlas data required to
 interpret geometry or packed video) before decoding.
 
-Either mode MAY mix Delivery Mode Subgroup and Datagram within a
+Either encapsulation mode MAY mix Delivery Mode Subgroup and Datagram within a
 track or group, subject to {{objects-subgroups-datagrams}} and
 {{datagram-guidelines}}.
 
@@ -584,16 +576,26 @@ does not require viewport-driven delivery.
 
 The VPS MUST be provided as MSF initialization data, not as a
 continuously running media track.  This matches the out-of-band VPS
-treatment in {{RFC10034}} (`sprop-v3c-parameter-set`).
+treatment in {{RFC10034}} (`sprop-v3c-parameter-set`).  Each
+initialization data item is carried in the catalog `initDataList`
+({{I-D.ietf-moq-msf}}, Section 5.1.7) as an entry with `type` equal
+to `inline`, whose `data` value is the Base64 encoding {{RFC4648}} of
+the item.  The items depend on the payload framing of the track
+({{payload-format}}).
 
-Each V3C-packaged track references one decoder configuration record
-with `initRef` ({{I-D.ietf-moq-msf}}, Section 5.2.13).  The record is
-carried in the catalog `initDataList` ({{I-D.ietf-moq-msf}},
-Section 5.1.7) as an entry with `type` equal to `inline`, whose
-`data` value is the Base64 encoding {{RFC4648}} of the record.  The
-record is the structure that {{ISOIEC23090-10}} or
-{{ISOIEC14496-15}} places in the corresponding ISOBMFF sample entry,
-without the enclosing box header:
+With native framing, the atlas track references with `initRef`
+({{I-D.ietf-moq-msf}}, Section 5.2.13) an entry that contains the `v3c_parameter_set()`
+syntax structure of the active VPS, without a V3C unit header.  This
+is the same value as `sprop-v3c-parameter-set` in {{RFC10034}}.
+Atlas parameter sets, SEI messages, and the parameter sets of the
+video, basemesh, and displacement sub-bitstreams are carried in band
+in the Objects ({{vps}}).  Video, basemesh, and displacement tracks
+that use native framing do not have an `initRef`.
+
+With ISOBMFF framing, each V3C-packaged track references one decoder
+configuration record with `initRef`.  The record is the structure
+that {{ISOIEC23090-10}} or {{ISOIEC14496-15}} places in the
+corresponding ISOBMFF sample entry, without the enclosing box header:
 
 | Track | Decoder configuration record |
 | :--- | :--- |
@@ -613,7 +615,8 @@ atlas parameter sets and SEI messages in its setup unit arrays.
 
 Other V3C component tracks do not reference the VPS directly.  Each
 such track lists the atlas track in `depends` ({{dependencies}}), and
-a receiver obtains the VPS from the record of that atlas track.  The
+a receiver obtains the VPS from the initialization data of that atlas
+track.  The
 `id` of each `initDataList` entry MUST be unique within the catalog.
 Tracks that use identical decoder configuration MAY reference the
 same entry.
@@ -639,8 +642,8 @@ attribute video data (V3C_AVD), occupancy video data (V3C_OVD), and
 packed video data (V3C_PVD) do not use a separate parameter set for
 each media type.  Every such unit carries `vuh_v3c_parameter_set_id`
 and thereby refers to that same active VPS.  The catalog records
-that VPS once, in the decoder configuration record of the atlas
-track ({{initialization}}).
+that VPS once, in the initialization data of the atlas track
+({{initialization}}).
 
 The VPS is sequence-level configuration for the CVS, not a
 per-component parameter set.  It includes the atlas geometry configuration in
@@ -667,22 +670,28 @@ catalog.  Profile, tier, and level, including `ptl_max_decodes_idc`,
 are recovered from the VPS; they are not duplicated as catalog
 fields.
 
-Atlas sequence parameter sets (ASPS), atlas frame parameter sets
-(AFPS), and Supplemental Enhancement Information (SEI) messages MAY
-be carried in the setup unit arrays of the
-`V3CDecoderConfigurationRecord`, in the atlas Objects, or in both,
-subject to the `array_completeness` values of the record
-({{ISOIEC23090-10}}, Clause 6.2.1).  Because every Group starts with
-an IRAP composition unit ({{groups}}), a publisher that does not mark
-those arrays complete SHOULD repeat the parameter sets in the first
-atlas Object of each Group.
+With native framing, atlas sequence parameter sets (ASPS), atlas
+frame parameter sets (AFPS), and Supplemental Enhancement Information
+(SEI) messages are carried in the atlas Objects.  Because every Group
+starts with an IRAP composition unit ({{groups}}), the first Object
+of each Group of a track that uses native framing MUST contain the
+parameter sets needed to decode that track from that Object.
+
+With ISOBMFF framing, ASPS, AFPS, and SEI messages MAY be carried in
+the setup unit arrays of the `V3CDecoderConfigurationRecord`, in the
+atlas Objects, or in both, subject to the `array_completeness` values
+of the record ({{ISOIEC23090-10}}, Clause 6.2.1).  A publisher that
+does not mark those arrays complete SHOULD repeat the parameter sets
+in the first atlas Object of each Group.
 
 Video-codec configuration for OVD, GVD, AVD, or PVD (for example HEVC
-or VVC parameter sets) is not part of the VPS.  It is carried in the
-decoder configuration record that the video track references with
-`initRef`.  Basemesh and displacement configuration is carried in the
-records listed in {{tbl-init}}; payload syntax for those components
-is specified in {{ISOIEC23090-29}}.
+or VVC parameter sets) is not part of the VPS.  With native framing,
+it is carried in band in the video sub-bitstream.  With ISOBMFF
+framing, it is carried in the decoder configuration record that the
+video track references with `initRef`.  Basemesh and displacement
+configuration is likewise carried in band with native framing, or in
+the records listed in {{tbl-init}} with ISOBMFF framing; payload
+syntax for those components is specified in {{ISOIEC23090-29}}.
 
 ### Attribute Types in the VPS
 {: #vps-attribute-types}
@@ -758,8 +767,9 @@ Subscriber
     v
 Catalog
     |
-    | atlas initRef -> V3CDecoderConfigurationRecord (VPS)
+    | atlas initRef -> VPS
     | other initRef -> component decoder configuration
+    |                  (ISOBMFF framing only)
     v
 V3C initialization
     |
@@ -774,13 +784,12 @@ Decode
 {: #fig-join title="Join sequence for a V3C presentation"}
 
 A subscriber MUST NOT begin decoding V3C component tracks until it
-has obtained the VPS and the decoder configuration record of each
-subscribed track.
+has obtained the VPS and, for tracks that use ISOBMFF framing, the
+decoder configuration record of each subscribed track.
 
-In single-track mode, a V3C unit of type V3C_VPS MAY be included in
-the first Object of a Group so that a stored Group remains
-self-contained.  In multi-track mode, the VPS is carried only in
-initialization data.  If the active VPS changes, the publisher MUST
+In multi-track mode, the VPS is carried only in initialization data;
+{{single-track}} specifies an exception for single-track mode.  If
+the active VPS changes, the publisher MUST
 publish a catalog update with a new `initDataList` entry and updated
 `initRef` values.
 
@@ -855,8 +864,9 @@ own MOQT Object solely to express codec framing.  When datagram
 delivery is used, slice and NAL unit size is constrained at encode
 time ({{datagram-encoding}}).
 
-The four-byte V3C unit header is not carried in the object.  Header
-fields needed to identify the component are advertised in the
+In multi-track mode, the four-byte V3C unit header is not carried in
+the object.  Header fields needed to identify the component are
+advertised in the
 catalog `v3c` object ({{v3c-track-identifiers}}).  The payload format
 is specified in {{payload-format}}.
 
@@ -890,9 +900,7 @@ of the Group on subgroup 0.
 
 In multi-track mode, subgroups MUST NOT be used as the primary means
 of separating V3C component types; those are separate tracks
-({{tracks}}).  In single-track mode, every Object carries all
-components of one composition unit, so subgroups cannot separate
-component types.
+({{tracks}}).
 
 When an object has Delivery Mode Datagram, it is
 conveyed as a single MOQT object datagram.  Such an object is not sent
@@ -924,12 +932,62 @@ datagram fragment header.
 ## Object Payload Format
 {: #payload-format}
 
-{{ISOIEC23090-5}} leaves the demarcation of NAL unit boundaries to
-the carriage format.  This document reuses the length-prefixed sample
-formats of {{ISOIEC23090-10}}, so that an Object payload in multi-track
-mode is identical to the corresponding ISOBMFF sample.  The size of
-the length field is taken from the decoder configuration record that
-the track references with `initRef` ({{initialization}}).
+{{ISOIEC23090-5}} specifies the V3C unit stream and the NAL unit
+stream, and leaves the framing of those units to the application
+({{ISOIEC23090-5}}, Clauses 7.2 and 7.3).  This document defines two
+payload framings:
+
+Native framing:
+: The Object payload consists only of syntax structures specified in
+  {{ISOIEC23090-5}} and {{ISOIEC23090-29}} ({{native-framing}}).  No
+  ISOBMFF structure is used.
+
+ISOBMFF framing:
+: The Object payload is identical to the corresponding ISOBMFF sample
+  specified in {{ISOIEC23090-10}} ({{isobmff-framing}}).  This allows
+  conversion between MOQT Objects and ISOBMFF samples without
+  rewriting payload bytes.
+
+The framing of a track is signaled by `v3c.framing`
+({{v3c-track-identifiers}}).  Native framing is the default.  All V3C
+tracks in the same `renderGroup` MUST use the same framing.
+
+> Editor's note: The name, values, and default of `v3c.framing` are
+> proposals for discussion.
+{: gi="aside"}
+
+### Native Framing
+{: #native-framing}
+
+In multi-track mode, an Object payload is the V3C unit payload of one
+V3C unit, without its four-byte V3C unit header ({{ISOIEC23090-5}},
+Clause 8.3.2.3):
+
+| Component | Object payload |
+| :--- | :--- |
+| AD, CAD | `atlas_sub_bitstream()` ({{ISOIEC23090-5}}, Clause 8.3.2.4): a `sample_stream_nal_header()` followed by `sample_stream_nal_unit()` structures ({{ISOIEC23090-5}}, Annex D) |
+| AD (atlas tile track) | As for the atlas track, containing only the ACL NAL units of the carried tiles ({{atlas-tiles}}) |
+| OVD, GVD, AVD, PVD | `video_sub_bitstream()`: a video unit stream in which unit boundaries are identifiable from patterns in the data, in the format identified by `PtlVideoCodecGroupIdc` or by a component codec mapping SEI message ({{ISOIEC23090-5}}, Clause 8.4.2.3) |
+| BMD | `basemesh_sub_bitstream()` in the NAL sample stream format identified by 4CC `bmsf` ({{ISOIEC23090-29}}) |
+| ADD | `displacement_sub_bitstream()` in the NAL sample stream format identified by 4CC `dacf` ({{ISOIEC23090-29}}) |
+{: #tbl-payload-native title="Object payload with native framing"}
+
+An atlas, common-atlas, or atlas tile Object payload begins with its
+own `sample_stream_nal_header()`, so the size of each
+`ssnu_nal_unit_size` field is known without initialization data.  A
+video Object payload uses the framing of the video unit stream, for
+example the byte stream format of the video codec with start codes.
+
+<!-- TODO: confirm with ISO/IEC 23090-29 whether each basemesh and displacement V3C unit payload begins with its own sample_stream_nal_header(). -->
+
+### ISOBMFF Framing
+{: #isobmff-framing}
+
+With ISOBMFF framing, an Object payload in multi-track mode is
+identical to the corresponding ISOBMFF sample of {{ISOIEC23090-10}}.
+The size of the length field is taken from the decoder configuration
+record that the track references with `initRef`
+({{initialization}}).
 
 | Component | Object payload | Length field size from |
 | :--- | :--- | :--- |
@@ -938,7 +996,7 @@ the track references with `initRef` ({{initialization}}).
 | OVD, GVD, AVD, PVD | Length-prefixed video sample as specified for the video codec in {{ISOIEC14496-15}} | Decoder configuration record of the video codec, for example `lengthSizeMinusOne` of `HEVCDecoderConfigurationRecord` |
 | BMD | `BaseMeshSample` ({{ISOIEC23090-10}}, Clause 7.6.3) | `unit_size_precision_bytes_minus1` of `BaseMeshDecoderConfigurationRecord` |
 | ADD | `ACDisplacementSample` ({{ISOIEC23090-10}}, Clause 7.6.3) | `unit_size_precision_bytes_minus1` of `ACDisplacementDecoderConfigurationRecord` |
-{: #tbl-payload title="Object payload format per component"}
+{: #tbl-payload title="Object payload with ISOBMFF framing"}
 
 An atlas Object MAY have a zero-length payload; as in
 {{ISOIEC23090-10}}, such an Object documents the timing of a
@@ -1093,8 +1151,8 @@ atlas or video payloads.
 Publishers advertise available tracks using the MSF catalog
 {{I-D.ietf-moq-msf}}.  V3C publishers MUST include sufficient
 information for subscribers to (1) discover all required component
-tracks, (2) obtain the VPS and the decoder configuration of each
-track via `initRef`, (3) determine dependencies
+tracks, (2) obtain the VPS and, with ISOBMFF framing, the decoder
+configuration of each track via `initRef`, (3) determine dependencies
 between tracks, and (4) select compatible alternatives.
 
 A subscriber uses catalog metadata to identify the V3C tracks it needs. It can subscribe to those tracks individually using SUBSCRIBE, or use SUBSCRIBE_TRACKS to request tracks within a namespace, optionally restricted by applicable MOQT Track Property filters. The subscriber can subsequently modify subscription parameters using REQUEST_UPDATE.
@@ -1143,6 +1201,7 @@ NOT be 0 (V3C_VPS) or a reserved value.  When both `component` and
 {{tbl-v3c-component}}.  `atlasId`, `mapIndex`,
 `packedMapIndex`, `attributeIndex`, `attributePartitionIndex`,
 `parameterSetId`, `auxiliaryVideo`, and `tileId` are numbers.
+`framing` is a string.
 Presence follows the V3C unit header except as noted below.
 
 * `atlasId` is omitted for `common-atlas`.
@@ -1162,6 +1221,11 @@ Presence follows the V3C unit header except as noted below.
   (`afti_tile_id` in {{ISOIEC23090-5}}) of the tile carried by the
   track.  It is not a V3C unit header field.
   <!-- TODO: ISO/IEC 23090-10 tile tracks and RFC 10034 sprop-v3c-tile-id allow several tiles per track; consider a tileIds array. -->
+* `framing` is a string that identifies the payload framing of the
+  track ({{payload-format}}).  Allowed values are `native` and
+  `isobmff`.  When the field is absent, receivers infer `native`.  It
+  is not a V3C unit header field.  A receiver MUST NOT decode a track
+  whose `framing` value it does not recognize.
 
 `attributeIndex` identifies which AVD component a track carries.
 The attribute type associated with that index is in the VPS
@@ -1179,6 +1243,7 @@ The attribute type associated with that index is in the VPS
 | auxiliaryVideo | vuh_auxiliary_video_flag |
 | parameterSetId | vuh_v3c_parameter_set_id |
 | tileId | afti_tile_id (not a unit header field) |
+| framing | None (payload framing, not a V3C syntax element) |
 {: #tbl-v3c-fields title="Fields of the catalog v3c object"}
 
 Allowed `component` values are:
@@ -1230,8 +1295,19 @@ packaging.  The `codec` value is never `v3c`.
   displacement tracks use `acd1` or `acdg` ({{ISOIEC23090-10}},
   Clause 7.6.3).
   <!-- TODO: align basemesh and displacement codec values with a codecs parameter definition if ISO/IEC 23090-10 Annex C adds one. -->
-* Single-track mode uses `v3e1` or `v3eg` for V-PCC, or `vdm1` or
-  `vdmg` for V-DMC ({{ISOIEC23090-10}}, Clauses 7.4.1 and 7.6.2).
+
+With native framing, no decoder configuration record is carried.  The
+`codec` value then uses the sample entry type that allows parameter
+sets outside a decoder configuration record: `v3cg` for atlas
+tracks, a video sample entry type that allows in-band parameter sets
+(for example `resv.vvvc.hev1` for HEVC {{ISOIEC14496-15}}), `bmcg`,
+or `acdg`.  With native framing, the `codec` value
+identifies the codec, profile, tier, and level only; it does not
+indicate ISOBMFF encapsulation.
+
+> Editor's note: A codec identifier for native framing that does not
+> reuse ISOBMFF sample entry types may be preferable.
+{: gi="aside"}
 
 ## Track Roles
 {: #track-roles}
@@ -1311,10 +1387,10 @@ exclusive for one atlas in the VPS.  When a publisher offers both
 forms, the geometry track (V3C_GVD, role `v3c-geometry`) and the
 arithmetic-coded displacement track (V3C_ADD, role
 `v3c-displacement`) MUST share one `altGroup` and MUST be
-time-aligned.  Each track MUST set `initRef` to initialization data
-whose VPS indicates that displacement form.  Each track MUST list,
-in `depends`, the atlas track and basemesh track that match that
-form and that VPS.  A subscriber MUST select at most one of the two
+time-aligned.  Each track MUST list, in `depends`, the atlas track
+and basemesh track that match that displacement form, and that atlas
+track MUST reference with `initRef` initialization data whose VPS
+indicates that displacement form.  A subscriber MUST select at most one of the two
 tracks and MUST select those dependent tracks and that
 initialization data.  {{catalog-vdmc}} shows the arithmetic-coded
 displacement form.
@@ -1331,8 +1407,11 @@ semantics from them.  Within one example, every media track shares
 `renderGroup` 1, `isLive` false, the same namespace, and the same
 media timeline.
 
-The atlas track references the `V3CDecoderConfigurationRecord` entry
-`atlas-init`, and the video component tracks reference the
+Except for {{catalog-native}}, the examples use ISOBMFF framing
+({{isobmff-framing}}), and every `v3c` object therefore contains
+`"framing": "isobmff"`.  The atlas track references the
+`V3CDecoderConfigurationRecord` entry `atlas-init`, and the video
+component tracks reference the
 `HEVCDecoderConfigurationRecord` entry `hevc-init` ({{initialization}}).
 For brevity, all video component tracks in an example share one
 video decoder configuration; a publisher whose components use
@@ -1434,6 +1513,7 @@ carry, are recovered from the VPS packed-video extension specified by
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "atlas",
         "unitType": 1,
         "atlasId": 0
@@ -1455,6 +1535,7 @@ carry, are recovered from the VPS packed-video extension specified by
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "geometry",
         "unitType": 3,
         "atlasId": 0
@@ -1476,6 +1557,7 @@ carry, are recovered from the VPS packed-video extension specified by
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "packed",
         "unitType": 5,
         "atlasId": 0,
@@ -1498,6 +1580,97 @@ carry, are recovered from the VPS packed-video extension specified by
 }
 ~~~
 {: #fig-v3c-catalog-pack-attr title="Catalog when attributes are packed"}
+
+### Packed Video Component Mode with Native Framing
+{: #catalog-native}
+
+{{fig-v3c-catalog-native}} shows the presentation of
+{{catalog-pack-attr}} with native framing ({{native-framing}}).  The
+atlas track references the entry `vps`, which contains the
+`v3c_parameter_set()` of the active VPS.  The geometry and packed
+tracks have no `initRef`; their HEVC parameter sets are carried in
+band, and their `codec` value uses the sample entry type `hev1`
+({{v3c-track-identifiers}}).  The atlas track `codec` value is
+`v3cg`.  The `data` value is a placeholder.
+
+~~~
+{
+  "version": "draft-01",
+  "tracks": [
+    {
+      "namespace": "packed-native",
+      "name": "v3c/atlas/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-atlas",
+      "renderGroup": 1,
+      "initRef": "vps",
+      "codec": "v3cg",
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "framing": "native",
+        "component": "atlas",
+        "unitType": 1,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "packed-native",
+      "name": "v3c/geometry/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-geometry",
+      "renderGroup": 1,
+      "depends": ["v3c/atlas/0"],
+      "codec": "resv.vvvc.hev1",
+      "bitrate": 4000000,
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "framing": "native",
+        "component": "geometry",
+        "unitType": 3,
+        "atlasId": 0
+      }
+    },
+    {
+      "namespace": "packed-native",
+      "name": "v3c/packed/0/0",
+      "packaging": "v3c",
+      "isLive": false,
+      "role": "v3c-packed",
+      "renderGroup": 1,
+      "depends": ["v3c/atlas/0"],
+      "codec": "resv.vvvc.hev1",
+      "bitrate": 8000000,
+      "framerate": 25,
+      "timescale": 1000,
+      "trackDuration": 2000,
+      "template": [0, 40, [1, 0], [0, 1], 0, 0],
+      "v3c": {
+        "framing": "native",
+        "component": "packed",
+        "unitType": 5,
+        "atlasId": 0,
+        "packedMapIndex": 0
+      }
+    }
+  ],
+  "initDataList": [
+    {
+      "id": "vps",
+      "type": "inline",
+      "data": "PLACEHOLDER-v3c_parameter_set"
+    }
+  ]
+}
+~~~
+{: #fig-v3c-catalog-native title="Catalog with native framing"}
 
 ### Unpacked Component Mode with Multiple Attributes
 {: #catalog-pack-none}
@@ -1545,6 +1718,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "atlas",
         "unitType": 1,
         "atlasId": 0
@@ -1566,6 +1740,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "occupancy",
         "unitType": 2,
         "atlasId": 0
@@ -1587,6 +1762,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "geometry",
         "unitType": 3,
         "atlasId": 0
@@ -1608,6 +1784,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -1631,6 +1808,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -1654,6 +1832,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -1677,6 +1856,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -1700,6 +1880,7 @@ split across partitions.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -1760,6 +1941,7 @@ for V-DMC.  When displacement is coded with a video codec instead,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "atlas",
         "unitType": 1,
         "atlasId": 0
@@ -1780,6 +1962,7 @@ for V-DMC.  When displacement is coded with a video codec instead,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "basemesh",
         "unitType": 7,
         "atlasId": 0
@@ -1800,6 +1983,7 @@ for V-DMC.  When displacement is coded with a video codec instead,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "displacement",
         "unitType": 8,
         "atlasId": 0
@@ -1821,6 +2005,7 @@ for V-DMC.  When displacement is coded with a video codec instead,
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -1901,6 +2086,7 @@ tracks that depend on that tile track.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "atlas",
         "unitType": 1,
         "atlasId": 0
@@ -1921,6 +2107,7 @@ tracks that depend on that tile track.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "atlas",
         "unitType": 1,
         "atlasId": 0,
@@ -1942,6 +2129,7 @@ tracks that depend on that tile track.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "atlas",
         "unitType": 1,
         "atlasId": 0,
@@ -1964,6 +2152,7 @@ tracks that depend on that tile track.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "geometry",
         "unitType": 3,
         "atlasId": 0
@@ -1985,6 +2174,7 @@ tracks that depend on that tile track.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -2008,6 +2198,7 @@ tracks that depend on that tile track.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "geometry",
         "unitType": 3,
         "atlasId": 0
@@ -2029,6 +2220,7 @@ tracks that depend on that tile track.
       "trackDuration": 2000,
       "template": [0, 40, [1, 0], [0, 1], 0, 0],
       "v3c": {
+        "framing": "isobmff",
         "component": "attribute",
         "unitType": 4,
         "atlasId": 0,
@@ -2073,7 +2265,7 @@ video components: geometry, then attribute components in increasing
 attribute index and partition index, then packed video components in
 increasing packed map index.  A publisher SHOULD assign publisher
 priorities to video component tracks that are consistent with that
-order.  Single-track mode does not allow
+order.  Single-track mode ({{single-track}}) does not allow
 per-component prioritization.  In datagram mode,
 reconstruction-critical datagrams SHOULD be prioritized over optional
 enhancement datagrams.
@@ -2096,9 +2288,11 @@ codecs.
 This document provides the corresponding functions with MSF catalog
 fields rather than SDP:
 
-* the `V3CDecoderConfigurationRecord` referenced by the atlas track
-  `initRef` replaces `sprop-v3c-parameter-set`, and its setup unit
-  arrays correspond to `sprop-v3c-atlas-data`; the VPS remains the
+* the initialization data referenced by the atlas track `initRef`
+  replaces `sprop-v3c-parameter-set`.  With native framing, it
+  carries the same `v3c_parameter_set()` value.  With ISOBMFF
+  framing, it is a `V3CDecoderConfigurationRecord`, whose setup unit
+  arrays correspond to `sprop-v3c-atlas-data`.  The VPS remains the
   source of attribute type, presence flags, and PTL, as in SDP;
 * the catalog `v3c` object replaces `sprop-v3c-unit-type`,
   `sprop-v3c-atlas-id`, `sprop-v3c-attr-idx`,
@@ -2139,7 +2333,7 @@ payloads remain opaque to relays.  When end-to-end confidentiality
 and integrity of media are required, deployments can use the MSF
 content-protection mechanisms, including MoQ Secure Objects
 {{I-D.ietf-moq-secure-objects}} as referenced by {{I-D.ietf-moq-msf}}.
-The VPS and the component decoder configuration records in
+The VPS and any component decoder configuration records in
 `initDataList` are catalog payload.  An attacker that tampers with
 them can cause decoder misconfiguration or reconstruction failure.  Catalog objects
 and initialization data MUST be protected with at least the same
@@ -2449,6 +2643,60 @@ The authors request comment on:
    already fit.
 6. Which layer should specify the datagram payload budget and any
    headroom for relays.
+
+# Single-Track Encapsulation Mode
+{: #single-track}
+
+This appendix specifies single-track mode, in which all V3C
+components are carried in one MOQT track.  This mode reduces the
+number of subscriptions, but it prevents per-component subscription,
+prioritization, and independent adaptive bitrate switching, and
+therefore is NOT RECOMMENDED.  A publisher that uses single-track
+mode MUST follow this appendix.  Except as specified in this
+appendix, the requirements in the body of this document apply.
+
+## Track and Catalog
+
+Each Object carries one complete V3C composition unit as a sequence
+of V3C units, each preceded by a length field and each including its
+four-byte V3C unit header.  Because every Object carries all
+components of one composition unit, subgroups cannot separate
+component types.
+
+The catalog `v3c` object of the track omits all fields except
+`parameterSetId` and `framing` ({{v3c-track-identifiers}}).  The
+`codec` value is `v3e1` or `v3eg` for V-PCC, or `vdm1` or `vdmg` for
+V-DMC ({{ISOIEC23090-10}}, Clauses 7.4.1 and 7.6.2).  With native
+framing, the `codec` value is `v3eg` or `vdmg`.
+
+## Initialization Data
+
+The track references with `initRef` the VPS as specified in
+{{initialization}}: the `v3c_parameter_set()` with native framing, or
+a `V3CDecoderConfigurationRecord` with ISOBMFF framing.  A V3C unit
+of type V3C_VPS MAY also be included in the first Object of a Group
+so that a stored Group remains self-contained.
+
+With ISOBMFF framing, carriage of video decoder configuration for
+this mode is not specified by this document.
+
+<!-- TODO: specify video decoder configuration for single-track mode with ISOBMFF framing, or restrict single-track mode to native framing. -->
+
+## Object Payload
+
+With native framing, an Object payload is a V3C sample stream
+({{ISOIEC23090-5}}, Annex C): one `sample_stream_v3c_header()`
+followed by one `sample_stream_v3c_unit()` for each V3C unit of the
+composition unit.  Each `sample_stream_v3c_unit()` contains the
+complete `v3c_unit()`, including its V3C unit header.  The size of
+each `ssvu_v3c_unit_size` field is given by
+`ssvh_unit_size_precision_bytes_minus1` of that Object's header.
+
+With ISOBMFF framing, an Object payload is a `V3CBitstreamSample`
+({{ISOIEC23090-10}}, Clause 7.3.1.2).  The size of its length fields
+is given by `unit_size_precision_bytes_minus1` in the
+`V3CDecoderConfigurationRecord` that the track references with
+`initRef`.
 
 # Acknowledgments
 {:numbered="false"}
