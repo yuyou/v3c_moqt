@@ -4,8 +4,7 @@ abbrev: "V3C over MOQT"
 category: info
 docname: draft-yuyou-moq-v3c-01
 ipr: trust200902
-submissiontype: IETF
-consensus: true
+submissiontype: independent
 v: 3
 area: "Web and Internet Transport"
 workgroup: "Media Over QUIC"
